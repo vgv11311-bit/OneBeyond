@@ -1,0 +1,10 @@
+# Web/API baseline only, not a CUDA/Blender/photographic worker installer.
+# Verify these dependencies in a clean target environment before production use.
+Flask>=3.0,<4
+numpy>=2.0,<3
+opencv-python-headless>=4.10,<6
+scipy>=1.13,<2
+Pillow>=10.4,<13
+trimesh>=4.0,<6
+pygltflib>=1.16,<2
+gunicorn>=22,<24; platform_system != "Windows"
