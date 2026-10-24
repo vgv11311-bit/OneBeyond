@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Photographic reconstruction</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;color:#f4f7fa;background:#171b20}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}header,.walk-hint{position:fixed;z-index:2;background:rgba(12,19,27,.85);border:1px solid #ffffff1a;backdrop-filter:blur(16px);box-shadow:0 12px 36px #0003}header{top:16px;left:16px;padding:16px;border-radius:16px;max-width:min(340px,calc(100vw - 32px))}.eyebrow{font:600 10px ui-monospace,monospace;letter-spacing:.16em;color:#67e8f9;text-transform:uppercase}.eyebrow:before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#67e8f9;margin-right:8px}h1{font-size:14px;font-weight:600;margin:8px 0 12px}select,button{font-family:inherit;font-size:12px;font-weight:500;color:#dce5ef;border:1px solid #ffffff20;background:#ffffff08;border-radius:20px;min-height:36px;padding:8px 12px}select{max-width:145px}option{background:#111b25}button{cursor:pointer;transition:background-color 140ms ease,transform 120ms ease}button:active{transform:scale(.97)}button:hover{background:#ffffff18}button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid #67e8f9;outline-offset:3px}button[aria-pressed=true]{color:#a5f3fc;border-color:#22d3ee66;background:#22d3ee1a}.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}details{margin-top:10px;color:#9eafbf;font-size:11px;line-height:1.5}summary{cursor:pointer}p{margin:7px 0 0}.walk-hint{left:50%;bottom:20px;transform:translateX(-50%);border-radius:24px;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:11px;white-space:nowrap;color:#bccbd8}kbd{font:10px ui-monospace,monospace;background:#ffffff12;padding:3px 5px;border-radius:4px}.walk-hint button{min-height:30px;padding:5px 10px}@media(max-width:700px){header{top:72px;padding:12px;max-width:270px}.walk-hint{bottom:12px;max-width:calc(100vw - 24px);white-space:normal}.optional{display:none}}@media(prefers-reduced-motion:reduce){button{transition:none}}
+</style>
+<script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/","@sparkjsdev/spark":"/vendor/spark/spark.module.js"}}</script>
+</head><body>
+<header><div class="eyebrow">One Beyond · Photographic room</div><h1 id="mode">Photographic reconstruction</h1><div class="row"><select id="view" aria-label="Captured camera"></select><button id="reset" title="Reset camera position">Reset</button><button id="surfaces" hidden>Solid surfaces</button></div><details><summary>Capture information</summary><p id="status" role="status">Loading model…</p><p id="coverage">Sparse capture may leave incomplete details away from photographed views.</p><p>For optional manual cleanup, download the splat and open it in <a href="https://superspl.at/editor" target="_blank" rel="noopener noreferrer">SuperSplat</a>. Opening this link does not transfer your capture.</p></details></header>
+<div class="walk-hint"><span id="controls">Drag to look · <kbd>W A S D</kbd> / arrows to walk <span class="optional">· Shift to sprint</span></span><button id="lock">Free look</button></div>
+<script type="module">
+import * as THREE from 'three';
+import {SparkRenderer,SplatMesh} from '@sparkjsdev/spark';
+import {createSolidRoom,createEnclosure,createInferredRearWall} from './support.js';
+import {surfaceWeight} from './surface-confidence.js';
+import {createNavigation,selectSurface,WALK_SETTINGS,photographicWalkSpeed} from './navigation.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const status=document.querySelector('#status');
+try{
+ const config=await (await fetch('/config.json')).json();
+ const captureStats=document.createElement('p');
+ if(config.capture_statistics){
+  const s=config.capture_statistics;
+  captureStats.textContent=`Video preparation: ${s.selected_frames} selected from ${s.candidate_frames} candidate frames. Low-detail warnings: ${s.low_detail_warnings}. Counts do not certify geometric coverage.`;
+  document.querySelector('header details').append(captureStats);
+ }
+ let needsRender=true,drawnFrames=0,idleSkippedFrames=0;
+ const invalidate=()=>{needsRender=true;};
+ document.querySelector('#coverage').textContent=config.solid?.enabled?'Unseen walls and doors are inferred. Sparse capture may leave incomplete details.':'Uncaptured surfaces are incomplete. Capture every wall and doorway for wider walking coverage.';
+ const scene=new THREE.Scene();
+ const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.01,1000);
+ const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+ const canvas=renderer.domElement;canvas.tabIndex=0;canvas.setAttribute('aria-label','Room walkthrough. Drag to look, WASD or arrow keys to walk.');
+ canvas.addEventListener('webglcontextlost',event=>{
+  event.preventDefault();renderer.setAnimationLoop(null);status.textContent='Graphics context lost. Reload the viewer to retry.';
+  if(parent!==window)parent.postMessage({type:'one-beyond-splat-error'},location.origin);
+ });
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(innerWidth,innerHeight);document.body.append(canvas);
+ // Raw splats are a fallback only. Do not spend GPU time drawing a blurry
+ // alternate representation underneath a complete photographic mesh.
+ const hasPhotoMesh=!!(config.fused_surface||config.surfaces?.length||config.surface);
+ const useNativeFloat=!hasPhotoMesh&&config.native_splat_display&&config.native_renderer==='native-float-v1';
+ const nativeFloat=useNativeFloat?await (await import('./native-float.js')).createNativeFloatRenderer({renderer,url:'/scene.ply',transform:config.model_transform,onChange:invalidate,onError:error=>{renderer.setAnimationLoop(null);status.textContent=String(error);window.reviewError=String(error);if(parent!==window)parent.postMessage({type:'one-beyond-splat-error'},location.origin);}}):null;
+ if(nativeFloat)window.addEventListener('pagehide',()=>nativeFloat.dispose(),{once:true});
+ const spark=hasPhotoMesh||nativeFloat?null:new SparkRenderer({renderer,depthTest:!!(config.native_splat_display&&config.navigation)});if(spark)scene.add(spark);
+ // Match Brush/display-space blending also offscreen. Spark 2.3.1 otherwise
+ // switches its colors to linear merely because a render target is bound.
+ if(spark){const prepareSpark=spark.onBeforeRender.bind(spark);spark.onBeforeRender=(...args)=>{prepareSpark(...args);spark.uniforms.encodeLinear.value=false;};}
+ const model=hasPhotoMesh||nativeFloat?null:new SplatMesh({url:'/scene.ply'});if(model)scene.add(model);
+ if(model&&config.model_transform){model.matrixAutoUpdate=false;model.matrix.set(...config.model_transform.flat());model.matrixWorldNeedsUpdate=true;}
+ const solid=await createSolidRoom(config);
+ const navigation=createNavigation(config.navigation);
+ const unsafeWalking=config.walk_support?.status==='unavailable'&&!config.solid?.enabled;
+ const support=config.fused_surface?[config.fused_surface]:(config.surfaces?.length?config.surfaces:(config.surface?[config.surface]:[]));
+ const layers=await Promise.all(support.map(async entry=>{
+  const loaded=await new GLTFLoader().loadAsync(new URL(entry.asset,location.href).href);
+  loaded.scene.traverse(node=>{if(node.isMesh)for(const material of [node.material].flat()){
+   material.depthWrite=true;
+   // Walking toward a supported surface must not dissolve it. Backface
+   // culling handles genuinely reversed faces without angle-based opacity.
+   material.transparent=false;material.opacity=1;material.alphaTest=0;
+   const texture=material.map;if(texture){texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());}
+  }});
+  return {entry,scene:loaded.scene,camera:{...(config.cameras.find(c=>c.name===entry.anchor)||config.cameras[0]),supportScale:config.navigation?.eye_height||1}};
+ }));
+ const surface=layers[0];let activeSurface=-1;
+ // Geometry inspection uses the very same triangles, not semantic furniture
+ // boxes or a second reconstructed room. No geometry/cache is modified.
+ const normalMaterial=new THREE.MeshNormalMaterial({side:THREE.FrontSide});
+ let geometryCheck=false;
+ const geometryButton=document.createElement('button');geometryButton.textContent='Geometry check';geometryButton.setAttribute('aria-pressed','false');
+ geometryButton.hidden=!surface;document.querySelector('header .row').append(geometryButton);
+ const originalMaterials=[];
+ for(const layer of layers)layer.scene.traverse(node=>{if(node.isMesh)originalMaterials.push([node,node.material]);});
+ geometryButton.onclick=()=>{geometryCheck=!geometryCheck;for(const [node,material] of originalMaterials){if(geometryCheck&&!node.geometry.getAttribute('normal'))node.geometry.computeVertexNormals();node.material=geometryCheck?normalMaterial:material;}geometryButton.setAttribute('aria-pressed',String(geometryCheck));invalidate();};
+ const surfaceScene=new THREE.Scene();for(const layer of layers){layer.scene.visible=false;surfaceScene.add(layer.scene);}
+ const surfaceAnchor=config.cameras.find(c=>c.name===config.surface?.anchor);
+ const surfaceMaterials=[];if(surface)surface.scene.traverse(node=>{if(node.isMesh)for(const material of [node.material].flat())surfaceMaterials.push([material,material.opacity]);});
+ // A neutral, explicitly inferred enclosure backs uncaptured directions. It
+ // is never textured with a stretched photograph or an invented door.
+ const enclosureData=config.completion_policy==='unknown-rear'?null:(config.navigation||config.enclosure);
+ const enclosure=enclosureData?createEnclosure(enclosureData):new THREE.Scene();
+ const rearWall=config.inferred_rear_wall?createInferredRearWall(config.inferred_rear_wall):null;
+ if(rearWall){
+  enclosure.add(rearWall.mesh);
+  const details=document.createElement('details');details.open=true;
+  const summary=document.createElement('summary');summary.textContent='Unobserved rear wall — optional inference';details.append(summary);
+  const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=rearWall.mesh.visible;
+  label.append(toggle,document.createTextNode(' Show plain inferred wall'));details.append(label);
+  const note=document.createElement('p');note.textContent='No rear photo exists in this capture. Position, extent and neutral colour are estimates, not a recovered wall. Boundary barriers are safety limits.';details.append(note);
+  const distance=document.createElement('input');distance.type='range';distance.min=String(-config.inferred_rear_wall.max_offset);distance.max=String(config.inferred_rear_wall.max_offset);distance.step=String(config.inferred_rear_wall.max_offset/100);distance.value='0';distance.setAttribute('aria-label','Inferred rear wall offset in unmeasured scene units');details.append(distance);
+  const output=document.createElement('p');output.textContent='Placement offset: 0 (unmeasured scene units)';details.append(output);
+  toggle.onchange=()=>{rearWall.mesh.visible=toggle.checked;invalidate();};
+  distance.oninput=()=>{rearWall.setOffset(Number(distance.value));output.textContent=`Placement offset: ${Number(distance.value).toFixed(2)} (unmeasured scene units)`;invalidate();};
+  document.querySelector('header').append(details);
+ }
+ if(navigation){
+  document.querySelector('#coverage').textContent=config.completion_policy==='unknown-rear'?'Estimated wall and furniture barriers are enabled. Rear-wall coverage is unknown; the optional neutral plane is an inference, not recovered geometry.':'Depth-derived wall and furniture barriers are enabled. Uncaptured enclosure surfaces are inferred; sparse photos still limit unseen detail.';
+ }
+ const viewDirection=new THREE.Vector3(),movement=new THREE.Vector3(),delta=new THREE.Vector3(),nextPosition=new THREE.Vector3(),upAxis=new THREE.Vector3(0,1,0);let depthWeight=1;
+ let showPhoto=true;
+ const surfaces=document.querySelector('#surfaces');
+ const describeMode=()=>{
+  invalidate();
+  surfaces.textContent=showPhoto?'Solid surfaces':'Photographic detail';surfaces.setAttribute('aria-pressed',String(!showPhoto));
+  document.querySelector('#mode').textContent=showPhoto?'Photographic reconstruction':'Inferred solid construction';
+  solid?.setPhotographic(showPhoto);
+ };
+ if(solid){surfaces.hidden=false;surfaces.onclick=()=>{showPhoto=!showPhoto;describeMode();};}describeMode();
+ window.setSurfaceMode=mode=>{showPhoto=mode!=='solid';describeMode();};
+ window.getReviewSurfaceMode=()=>showPhoto?'hybrid':'solid';
+ // Brush optimizes display-space alpha accumulation. Keep those accumulated
+ // colors; unpremultiplying weak translucent needles amplifies their contours.
+ renderer.autoClear=false;
+ const photoType=renderer.getContext().getExtension('EXT_color_buffer_float')?THREE.HalfFloatType:THREE.UnsignedByteType;
+ const photoTarget=hasPhotoMesh||nativeFloat?null:new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:photoType,depthBuffer:false});
+ const compositeScene=new THREE.Scene(),compositeCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+ const evidenceCameras=layers.length&&!config.fused_surface?layers.map(l=>l.camera):Array.from({length:Math.min(8,config.cameras.length)},(_,i)=>config.cameras[Math.round(i*(config.cameras.length-1)/Math.max(1,Math.min(8,config.cameras.length)-1))]);
+ const shaderCameras=Array.from({length:8},(_,i)=>evidenceCameras[Math.min(i,evidenceCameras.length-1)]);
+ const compositeMaterial=new THREE.ShaderMaterial({transparent:true,depthTest:false,depthWrite:false,
+  uniforms:{photo:{value:photoTarget?.texture||null},inverseProjection:{value:camera.projectionMatrixInverse},viewWorld:{value:camera.matrixWorld},captureFrames:{value:shaderCameras.map(c=>new THREE.Matrix3().set(...c.rotation.flat()).transpose())},captureCount:{value:Math.min(8,evidenceCameras.length)},captureLimits:{value:shaderCameras.map(c=>{const [w,h,fx,fy,cx,cy]=c.intrinsics;return new THREE.Vector4(-cx/fx,(w-cx)/fx,-cy/fy,(h-cy)/fy);})}},
+  vertexShader:'varying vec2 uvPhoto;void main(){uvPhoto=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
+  fragmentShader:`uniform sampler2D photo;uniform mat4 inverseProjection,viewWorld;uniform mat3 captureFrames[8];uniform vec4 captureLimits[8];uniform int captureCount;varying vec2 uvPhoto;
+   void main(){
+    vec4 ray=inverseProjection*vec4(uvPhoto*2.0-1.0,1.0,1.0);
+    vec3 direction=mat3(viewWorld)*normalize(ray.xyz/ray.w);float support=0.0;
+    for(int i=0;i<8;i++){if(i>=captureCount)break;vec3 local=captureFrames[i]*direction;
+     if(local.z<0.0){vec2 q=vec2(local.x,-local.y)/(-local.z);vec4 limits=captureLimits[i];
+      vec2 edge=min(q-limits.xz,limits.yw-q);support=max(support,smoothstep(0.0,0.08,min(edge.x,edge.y)));}}
+    vec4 p=texture2D(photo,uvPhoto);
+    // Only supported accumulated evidence fills depth holes. Weak stretched
+    // splats must not paint a dark fringe over the inferred ceiling/wall.
+    float coverage=smoothstep(0.35,0.90,p.a)*support;
+    gl_FragColor=vec4(p.rgb/max(p.a,0.35),coverage);
+   }`
+ });
+ compositeScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),compositeMaterial));
+ const select=document.querySelector('#view');
+ select.hidden=!!(config.fused_surface||config.native_splat_display);
+ document.querySelector('#reset').textContent=config.fused_surface||config.native_splat_display?'Reset view':'Reset';
+ for(const [index,c] of config.cameras.entries()){const o=document.createElement('option');o.value=c.name;o.textContent=`Capture ${String(index+1).padStart(2,'0')}`;select.append(o);}
+ const angles=new THREE.Euler(0,0,0,'YXZ'),velocity=new THREE.Vector3();
+ let capturedCamera;
+ function projectCapturedView(){
+  const [w,h,fx,fy,cx,cy]=capturedCamera.intrinsics;
+  const scale=Math.max(innerWidth/w,innerHeight/h),vw=innerWidth/scale,vh=innerHeight/scale;
+  const x=(w-vw)/2,y=(h-vh)/2,n=camera.near;
+  camera.projectionMatrix.makePerspective((x-cx)*n/fx,(x+vw-cx)*n/fx,(cy-y)*n/fy,(cy-y-vh)*n/fy,n,camera.far);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+ }
+ function setCamera(name){
+  invalidate();
+  const c=config.cameras.find(c=>c.name===name);if(!c)throw new Error('Unknown camera');
+  capturedCamera=c;camera.position.fromArray(c.position);const r=c.rotation;
+  camera.quaternion.setFromRotationMatrix(new THREE.Matrix4().set(r[0][0],r[0][1],r[0][2],0,r[1][0],r[1][1],r[1][2],0,r[2][0],r[2][1],r[2][2],0,0,0,0,1));
+  angles.setFromQuaternion(camera.quaternion,'YXZ');camera.quaternion.setFromEuler(angles);velocity.set(0,0,0);keys.clear();activePointer=null;
+  projectCapturedView();select.value=name;
+ }
+ const move=desired=>{if(unsafeWalking){status.textContent='Walking is unavailable because depth collision geometry could not be verified. Use captured views or retry reconstruction.';return;}const p=navigation?navigation.constrain(camera.position.toArray(),desired.toArray()):(solid?solid.constrain(camera.position,desired):desired).toArray();if(p.some((v,i)=>v!==camera.position.getComponent(i))){camera.position.fromArray(p);invalidate();}};
+ window.setReviewCamera=setCamera;window.moveReviewCamera=amount=>{const next=camera.position.clone().add(new THREE.Vector3(amount,0,0).applyQuaternion(camera.quaternion));move(next);};
+ const look=(dx,dy)=>{angles.y-=dx*WALK_SETTINGS.look;angles.x=THREE.MathUtils.clamp(angles.x-dy*WALK_SETTINGS.look,-Math.PI/2.1,Math.PI/2.1);camera.quaternion.setFromEuler(angles);invalidate();};
+ window.turnReviewCamera=angle=>look(-angle/.0022,0);
+ window.pitchReviewCamera=angle=>look(0,-angle/.0022);
+ window.tryReviewMove=values=>{const target=new THREE.Vector3(...values);const steps=Math.min(1000,Math.max(1,Math.ceil(camera.position.distanceTo(target)/.05)));for(let i=0;i<steps;i++)move(camera.position.clone().lerp(target,1/(steps-i)));return camera.position.toArray();};
+ window.getReviewState=()=>({nativeRenderer:nativeFloat?.inspect(),position:camera.position.toArray(),rotation:angles.toArray().slice(0,3),velocity:velocity.toArray(),geometryCheck,drawnFrames,idleSkippedFrames,renderStats:{...renderer.info.render,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures},photoWeight:showPhoto?1:0,surfaceWeight:depthWeight,surfaceAnchor:layers[activeSurface]?.entry.anchor,opaqueSurfaces:layers.every(layer=>{let opaque=true;layer.scene.traverse(node=>{if(node.isMesh)opaque&&=![node.material].flat().some(m=>m.transparent||m.opacity!==1);});return opaque;}),enclosure:!!enclosureData,collision:navigation?.inspect(),enclosureOnly:enclosureOnly,mode:window.getReviewSurfaceMode(),pointerLocked:document.pointerLockElement===canvas});
+ const keys=new Set();let activePointer=null,previousPointer={x:0,y:0};
+ setCamera(config.initial_camera||config.cameras[0].name);select.onchange=()=>setCamera(select.value);document.querySelector('#reset').onclick=()=>setCamera(select.value);
+ canvas.onpointerdown=e=>{if(e.button!==0||activePointer!==null)return;canvas.focus({preventScroll:true});activePointer=e.pointerId;previousPointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);};
+ const release=()=>{activePointer=null;};canvas.onpointerup=release;canvas.onpointercancel=release;canvas.onlostpointercapture=release;
+ document.addEventListener('pointermove',e=>{
+  if(document.pointerLockElement===canvas)look(e.movementX,e.movementY);
+  else if(activePointer===e.pointerId){look(e.clientX-previousPointer.x,e.clientY-previousPointer.y);previousPointer={x:e.clientX,y:e.clientY};}
+ });
+ const lockButton=document.querySelector('#lock');lockButton.onclick=async()=>{try{if(document.pointerLockElement===canvas)document.exitPointerLock();else await canvas.requestPointerLock();}catch{status.textContent='Free look is unavailable. Drag to look instead.';}};
+ const clearInput=()=>{keys.clear();velocity.set(0,0,0);activePointer=null;};
+ document.addEventListener('pointerlockchange',()=>{clearInput();lockButton.textContent=document.pointerLockElement===canvas?'Esc to release':'Free look';if(document.pointerLockElement===canvas)canvas.focus({preventScroll:true});});
+ onkeydown=e=>{if(e.code==='Escape'){clearInput();if(document.pointerLockElement===canvas)document.exitPointerLock();return;}if(e.target.closest?.('select,button,input,textarea,[contenteditable=true]')||e.altKey||e.ctrlKey||e.metaKey)return;if(/^(Key[WASDC]|Arrow|Shift|Control|Space)/.test(e.code)){e.preventDefault();keys.add(e.code);}};
+ onkeyup=e=>keys.delete(e.code);onblur=clearInput;document.addEventListener('visibilitychange',()=>{if(document.hidden)clearInput();});
+ onresize=()=>{renderer.setSize(innerWidth,innerHeight);photoTarget?.setSize(innerWidth,innerHeight);projectCapturedView();invalidate();};
+ if(model)await model.initialized;status.textContent=config.notice;window.reviewReady=true;
+ window.reviewSolid=solid?.inspect()||navigation?.inspect();window.reviewCleanup=config.cleanup;
+ if(parent!==window)parent.postMessage({type:'one-beyond-splat-ready'},location.origin);
+ let previous=performance.now(),enclosureOnly=false;renderer.setAnimationLoop(now=>{
+  const dt=Math.min(.05,(now-previous)/1000);previous=now;
+  const down=(...codes)=>codes.some(code=>keys.has(code));
+  movement.set(Number(down('KeyD','ArrowRight'))-Number(down('KeyA','ArrowLeft')),0,Number(down('KeyS','ArrowDown'))-Number(down('KeyW','ArrowUp')));
+  if(movement.lengthSq()){movement.applyAxisAngle(upAxis,angles.y).normalize().multiplyScalar(photographicWalkSpeed(config.navigation?.eye_height)*(down('ShiftLeft','ShiftRight')?WALK_SETTINGS.sprint:1));}
+  velocity.lerp(movement,1-Math.exp(-WALK_SETTINGS.damping*dt));
+  delta.copy(velocity).multiplyScalar(dt);const substeps=Math.max(1,Math.ceil(delta.length()/.05));
+  if(delta.lengthSq()>1e-12)for(let i=0;i<substeps;i++)move(nextPosition.copy(camera.position).addScaledVector(delta,1/substeps));
+  // The photo mesh/enclosure are static. Reuse the last exact framebuffer
+  // while idle; raw Spark fallback retains its asynchronous rendering loop.
+  if((hasPhotoMesh||nativeFloat)&&!needsRender){idleSkippedFrames++;return;}
+  needsRender=false;drawnFrames++;
+  renderer.setRenderTarget(null);renderer.setClearColor(0x171b20,1);renderer.clear();
+  if(enclosureData||rearWall?.mesh.visible)renderer.render(enclosure,camera);
+  if(solid)renderer.render(solid.scene,camera);
+  const forward=camera.getWorldDirection(viewDirection).toArray();
+  const rearCompletion=!!navigation&&config.cameras.every(c=>forward.reduce((s,v,i)=>s-v*c.rotation[i][2],0)<.15);
+  if(rearCompletion!==enclosureOnly&&showPhoto)document.querySelector('#mode').textContent=rearCompletion?(config.completion_policy==='unknown-rear'?'Unknown rear coverage':'Inferred room enclosure'):'Photographic reconstruction';
+  enclosureOnly=rearCompletion;
+  // Captured-view coverage is a warning, not proof that individual splats
+  // are floaters. Keep observed geometry; inferred completion stays separate.
+  if(showPhoto){
+   // Only opaque, in-frustum splats can back depth holes. Angular support is
+   // evaluated per pixel, so turning does not switch the whole image at once.
+   if(nativeFloat){
+    nativeFloat.render(camera,()=>{if(enclosureData||rearWall?.mesh.visible)renderer.render(enclosure,camera);if(solid)renderer.render(solid.scene,camera);});
+   }else if(!hasPhotoMesh&&config.native_splat_display){
+    renderer.render(scene,camera);
+   }else if(!hasPhotoMesh){
+    renderer.setRenderTarget(photoTarget);renderer.setClearColor(0,0);renderer.clear();renderer.render(scene,camera);
+    renderer.setRenderTarget(null);renderer.render(compositeScene,compositeCamera);
+   }
+   if(surface){
+    if(config.fused_surface){
+     activeSurface=0;layers[0].scene.visible=true;depthWeight=1;
+    }else if(config.surfaces?.length){
+     activeSurface=selectSurface(camera.position.toArray(),camera.getWorldDirection(viewDirection).toArray(),layers.map(l=>l.camera),activeSurface);
+     for(const [index,layer] of layers.entries())layer.scene.visible=index===activeSurface;
+     // Do not fade calibrated geometry to raw splats simply because the user
+     // walks. Nearest captured support remains solid; hysteresis avoids flicker.
+     depthWeight=1;
+    }else{
+     layers[0].scene.visible=true;
+     depthWeight=config.solid?.enabled?1:surfaceWeight(camera.position.toArray(),camera.getWorldDirection(viewDirection).toArray(),surfaceAnchor,config.cameras);
+     for(const [material,opacity] of surfaceMaterials)material.opacity=opacity*depthWeight;
+    }
+    // Retain the enclosure depth: real walls occlude unsupported geometry on
+    // their far side. Clearing it let stretched photo sheets overwrite walls.
+    if(depthWeight>.001)renderer.render(surfaceScene,camera);
+   }
+  }
+ });
+}catch(error){status.textContent=String(error);window.reviewError=String(error);if(parent!==window)parent.postMessage({type:'one-beyond-splat-error'},location.origin);console.error(error);}
+</script></body></html>

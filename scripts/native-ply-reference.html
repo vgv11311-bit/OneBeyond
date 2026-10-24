@@ -1,0 +1,66 @@
+<!doctype html><html><head><style>html,body{margin:0;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/api/gaussian-vendor/three/build/three.module.js"}}</script></head><body><script type="module">
+// Diagnostic float32 PLY rasterizer. No photo projection, packing, sharpening,
+// LOD or model execution. Standard covariance projection + alpha compositing.
+import * as T from 'three';
+try{
+ const cfg=await(await fetch('./config.json')).json();const bytes=await(await fetch('./scene.ply')).arrayBuffer();
+ const raw=new Uint8Array(bytes);let end=0;for(let i=0;i<Math.min(raw.length,20000);i++)if(raw[i]===10&&new TextDecoder().decode(raw.subarray(Math.max(0,i-10),i)).endsWith('end_header')){end=i+1;break;}
+ if(!end)throw Error('No PLY header');const header=new TextDecoder().decode(raw.subarray(0,end));
+ const names=[...header.matchAll(/^property float (\w+)$/gm)].map(m=>m[1]),count=Number(header.match(/element vertex (\d+)/)[1]);
+ const floats=new Float32Array(bytes.slice(end));if(floats.length!==count*names.length)throw Error('Unexpected PLY');
+ const indices=Object.fromEntries(names.map((n,i)=>[n,i])),get=(n,i)=>floats[n*names.length+indices[i]];
+ const W=1024,H=Math.ceil(count*16/W),data=new Float32Array(W*H*4),sh=new Float32Array(count*48),positions=new Float32Array(count*3);
+ const matrix=new T.Matrix4(),quat=new T.Quaternion(),scale=new T.Vector3();
+ for(let i=0;i<count;i++){
+  const p=i*64;for(let j=0;j<3;j++)data[p+j]=positions[i*3+j]=get(i,['x','y','z'][j]);data[p+3]=1/(1+Math.exp(-get(i,'opacity')));
+  quat.set(get(i,'rot_1'),get(i,'rot_2'),get(i,'rot_3'),get(i,'rot_0')).normalize();matrix.makeRotationFromQuaternion(quat);const m=matrix.elements;
+  const s=[0,1,2].map(j=>Math.exp(get(i,'scale_'+j))**2),cov=(r,c)=>s.reduce((sum,v,j)=>sum+m[j*4+r]*m[j*4+c]*v,0);
+  data[p+4]=cov(0,0);data[p+5]=cov(1,1);data[p+6]=cov(2,2);data[p+8]=cov(0,1);data[p+9]=cov(0,2);data[p+10]=cov(1,2);
+  for(let c=0;c<3;c++){sh[i*48+c*16]=get(i,'f_dc_'+c);for(let j=1;j<16;j++)sh[i*48+c*16+j]=get(i,'f_rest_'+(c*15+j-1));}
+ }
+ const texture=new T.DataTexture(data,W,H,T.RGBAFormat,T.FloatType);texture.needsUpdate=true;
+ const renderer=new T.WebGLRenderer({antialias:false,preserveDrawingBuffer:true});renderer.setPixelRatio(1);renderer.setSize(innerWidth,innerHeight);renderer.autoClear=true;document.body.append(renderer.domElement);
+ if(!renderer.extensions.has('EXT_color_buffer_float'))throw Error('Float render target unavailable');
+ const ldr=new URLSearchParams(location.search).has('ldr');
+ const target=new T.WebGLRenderTarget(innerWidth,innerHeight,{type:ldr?T.UnsignedByteType:T.HalfFloatType,depthBuffer:false});
+ const scene=new T.Scene(),camera=new T.Camera();
+ const geometry=new T.InstancedBufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute([-1,-1,0,1,-1,0,1,1,0,-1,1,0],3));geometry.setIndex([0,1,2,0,2,3]);geometry.instanceCount=count;
+ const order=new T.InstancedBufferAttribute(new Float32Array(count),1);geometry.setAttribute('aIndex',order);
+ const uniforms={splats:{value:texture},viewCV:{value:new T.Matrix4()},K:{value:new T.Vector4()},size:{value:new T.Vector2(innerWidth,innerHeight)},width:{value:W}};
+ const material=new T.ShaderMaterial({glslVersion:T.GLSL3,side:T.DoubleSide,transparent:true,depthTest:false,depthWrite:false,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneMinusSrcAlphaFactor,uniforms,
+ vertexShader:`in float aIndex;uniform sampler2D splats;uniform mat4 viewCV;uniform vec4 K;uniform vec2 size;uniform int width;out vec2 uvG;flat out vec3 colour;flat out float alpha;
+ vec4 readP(int o){int a=int(aIndex)*16+o;return texelFetch(splats,ivec2(a%width,a/width),0);}
+ void main(){vec4 p=readP(0),d=readP(1),o=readP(2);vec3 v=(viewCV*vec4(p.xyz,1)).xyz;uvG=position.xy*3.;colour=readP(15).rgb;alpha=0.;
+ if(v.z<.1||v.z>1000.){gl_Position=vec4(2,2,2,1);return;}
+ mat3 covariance=mat3(d.x,o.x,o.y,o.x,d.y,o.z,o.y,o.z,d.z);mat3 R=mat3(viewCV);covariance=R*covariance*transpose(R);
+ float tx=clamp(v.x/v.z,-1.3*size.x/(2.*K.x),1.3*size.x/(2.*K.x));float ty=clamp(v.y/v.z,-1.3*size.y/(2.*K.y),1.3*size.y/(2.*K.y));
+ vec3 jx=vec3(K.x/v.z,0.,-K.x*tx/v.z),jy=vec3(0.,K.y/v.z,-K.y*ty/v.z);
+ float a=dot(jx,covariance*jx),b=dot(jx,covariance*jy),c=dot(jy,covariance*jy);float det0=max(0.,a*c-b*b);a+=.1;c+=.1;float det=max(1e-10,a*c-b*b);
+ alpha=p.w*sqrt(det0/det);float mid=.5*(a+c),disc=sqrt(max(0.,.25*(a-c)*(a-c)+b*b));float l1=max(.0001,mid+disc),l2=max(.0001,mid-disc);
+ vec2 e1=abs(b)>1e-6?normalize(vec2(b,l1-a)):(a>=c?vec2(1,0):vec2(0,1));vec2 e2=vec2(-e1.y,e1.x);
+ vec2 delta=(e1*sqrt(l1)*uvG.x+e2*sqrt(l2)*uvG.y);vec2 pixel=K.xy*v.xy/v.z+K.zw+delta;
+ gl_Position=vec4(pixel.x/size.x*2.-1.,1.-pixel.y/size.y*2.,0.,1.);}`,
+ fragmentShader:`in vec2 uvG;flat in vec3 colour;flat in float alpha;out vec4 fragment;void main(){float power=dot(uvG,uvG);if(power>9.)discard;float a=min(.999,alpha*exp(-.5*power));if(a<1./255.)discard;fragment=vec4(max(vec3(0),colour)*a,a);}`});
+ const mesh=new T.Mesh(geometry,material);mesh.frustumCulled=false;scene.add(mesh);
+ const display=new T.Scene(),quad=new T.Mesh(new T.PlaneGeometry(2,2),new T.ShaderMaterial({depthTest:false,uniforms:{image:{value:target.texture}},vertexShader:'varying vec2 uvP;void main(){uvP=uv;gl_Position=vec4(position.xy,0,1);}',fragmentShader:'varying vec2 uvP;uniform sampler2D image;void main(){gl_FragColor=vec4(clamp(texture2D(image,uvP).rgb,0.,1.),1.);}'}));display.add(quad);
+ const flip=new T.Matrix4().makeScale(1,-1,-1),glCamera=new T.PerspectiveCamera();let currentName;
+ function setCamera(name){
+  const c=cfg.cameras.find(c=>c.name===name);if(!c)throw Error('Unknown camera');currentName=name;const r=c.rotation;
+  glCamera.matrixWorld.set(r[0][0],r[0][1],r[0][2],c.position[0],r[1][0],r[1][1],r[1][2],c.position[1],r[2][0],r[2][1],r[2][2],c.position[2],0,0,0,1);
+  uniforms.viewCV.value.copy(flip).multiply(glCamera.matrixWorld.clone().invert()).multiply(flip);
+  const [w,h,fx,fy,cx,cy]=c.intrinsics;uniforms.K.value.set(fx/w*innerWidth,fy/h*innerHeight,cx/w*innerWidth,cy/h*innerHeight);
+  const view=uniforms.viewCV.value.elements,origin=c.position.map((v,i)=>v*(i? -1:1)),depths=new Float32Array(count);
+  for(let i=0;i<count;i++){
+   const x0=positions[i*3],y0=positions[i*3+1],z0=positions[i*3+2];depths[i]=view[2]*x0+view[6]*y0+view[10]*z0+view[14];
+   let x=x0-origin[0],y=y0-origin[1],z=z0-origin[2];const norm=Math.hypot(x,y,z)||1;x/=norm;y/=norm;z/=norm;const xx=x*x,yy=y*y,zz=z*z;
+   const basis=[.28209479177387814,-.4886025119029199*y,.4886025119029199*z,-.4886025119029199*x,1.0925484305920792*x*y,-1.0925484305920792*y*z,.31539156525252005*(2*zz-xx-yy),-1.0925484305920792*x*z,.5462742152960396*(xx-yy),-.5900435899266435*y*(3*xx-yy),2.890611442640554*x*y*z,-.4570457994644658*y*(4*zz-xx-yy),.3731763325901154*z*(2*zz-3*xx-3*yy),-.4570457994644658*x*(4*zz-xx-yy),1.445305721320277*z*(xx-yy),-.5900435899266435*x*(xx-3*yy)];
+   for(let channel=0;channel<3;channel++){let rgb=.5;for(let j=0;j<16;j++)rgb+=sh[i*48+channel*16+j]*basis[j];data[i*64+60+channel]=Math.max(0,rgb);}
+  }
+  const sorted=Array.from({length:count},(_,i)=>i).sort((a,b)=>depths[b]-depths[a]);order.array.set(sorted);order.needsUpdate=true;texture.needsUpdate=true;render();
+ }
+ function render(){renderer.setRenderTarget(target);renderer.setClearColor(0,0);renderer.clear();renderer.render(scene,camera);renderer.setRenderTarget(null);renderer.setClearColor(0,1);renderer.clear();renderer.render(display,camera);}
+ window.setReferenceCamera=setCamera;window.referenceState=()=>({camera:currentName,count,floatTexture:true,background:'black',buffer:[renderer.domElement.width,renderer.domElement.height],shaderErrors:renderer.info.programs?.map(p=>p.diagnostics).filter(Boolean)});
+ setCamera(cfg.cameras[0].name);window.referenceReady=true;
+}catch(error){console.error(error);window.referenceError=String(error);}
+</script></body></html>
