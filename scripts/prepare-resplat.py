@@ -9,13 +9,14 @@ import urllib.request
 PIN='cae7ddc4cdbd80e05e9f5fa00f5ea02c4e9056b1'
 MODEL='haofeixu/resplat'
 FILENAME='resplat-base-dl3dv-512x960-view8-8179ed87.pth'
-HOME=Path(os.environ['LOCALAPPDATA'])/'OneBeyond'
+HOME=Path(os.environ.get('LOCALAPPDATA', str(Path.home())))/'OneBeyond'
 
 
 def prepare():
     source=HOME/'tools/resplat-cae7ddc4'
     if not source.exists():
         subprocess.run(['git','clone','https://github.com/cvg/resplat.git',str(source)],check=True)
+        subprocess.run(['git','-C',str(source),'checkout','--detach',PIN],check=True)
     commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
     if commit!=PIN:raise ValueError('Unexpected ReSplat source revision; refusing a moving target')
     if subprocess.check_output(['git','-C',str(source),'status','--porcelain'],text=True).strip():

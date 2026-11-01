@@ -35,6 +35,16 @@ export type SpaceJob = {
   progress: number;
   stage: string;
   logs: string[];
+  elapsed_seconds?: number;
+  processing_budget?: {
+    elapsed_seconds:number;soft_seconds:number;hard_seconds:number;remaining_seconds:number;
+    soft_target_exceeded:boolean;deadline_exceeded:boolean;scope:string;successful_room_guaranteed:boolean;forced_abort_at_target?:boolean;
+  };
+  runtime_activity?: {
+    label:string;stage:string;elapsed_seconds:number;remaining_seconds:number;
+    heartbeat_age_seconds:number;heartbeat_stale:boolean;output_age_seconds:number;
+    unit?:string;current?:number;total?:number;
+  };
   glb_url?: string;
   gaussian?: {
     status: 'ready' | 'unavailable' | 'skipped';

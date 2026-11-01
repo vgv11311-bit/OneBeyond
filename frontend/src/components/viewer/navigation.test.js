@@ -4,6 +4,14 @@ import {createNavigation,selectSurface,WALK_SETTINGS,photographicWalkSpeed} from
 const fixture=()=>({bounds:{min:[0,-2,0],max:[10,3,10]},radius:.2,cell:.2,width:51,depth:51,
  occupied:Array.from({length:51},(_,z)=>z*51+25)});
 describe('photographic collision movement',()=>{
+ it('recovers a blocked spawn without erasing furniture or changing elevation',()=>{
+  const data={...fixture(),walking_plane:'level_floor'};
+  const nav=createNavigation(data),before=nav.inspect().occupiedCells;
+  const result=nav.constrain([5.05,.8,3],[4,.8,3]);
+  expect(nav.blocked(result)).toBe(false);expect(result[1]).toBe(.8);
+  expect(nav.inspect().occupiedCells).toBe(before);
+  expect(nav.blocked([5.05,.8,3])).toBe(true);
+ });
  it('rejects malformed collision metadata and blocks invalid or exterior probes',()=>{
   for(const patch of [{radius:Infinity},{width:1.5},{occupied:[-1]},{occupied:[2601]},{bounds:{min:[0,0],max:[1,1]}}])expect(()=>createNavigation({...fixture(),...patch})).toThrow();
   expect(()=>createNavigation({...fixture(),enclosure_rect:{center:[0,0],yaw:NaN,min:[-1,-1],max:[1,1]}})).toThrow();
@@ -42,6 +50,13 @@ describe('photographic collision movement',()=>{
   for(let z=20;z<30;z++)for(let x=20;x<30;x++)data.occupied.push(z*51+x);
   const nav=createNavigation(data),p=nav.constrain([5,0,2],[5,0,8]);
   expect(p[2]).toBeLessThan(3.81);expect(nav.blocked(p)).toBe(false);
+ });
+ it('allows explicit bounded camera elevation without bypassing a furniture footprint',()=>{
+  const nav=createNavigation(fixture());
+  expect(nav.constrain([2,0,2],[2,99,2],{allowElevation:true})[1]).toBeCloseTo(2.8);
+  expect(nav.constrain([2,0,2],[2,-99,2],{allowElevation:true})[1]).toBeCloseTo(-1.8);
+  const blocked=nav.constrain([2,0,2],[9,2,2],{allowElevation:true});
+  expect(blocked[0]).toBeLessThan(4.81);expect(nav.blocked(blocked)).toBe(false);
  });
  it('is invariant under scene scale and rejects nonfinite movement',()=>{
   const data=fixture(),p=createNavigation(data).constrain([2,0,2],[9,0,8]);

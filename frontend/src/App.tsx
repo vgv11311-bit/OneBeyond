@@ -5,6 +5,7 @@ import { UploadModal } from './components/UploadModal';
 import { ProcessingView } from './components/ProcessingView';
 const SpatialViewer = lazy(() => import('./components/viewer/RoomViewer').then(module => ({ default: module.RoomViewer })));
 import { api } from './services/api';
+import { resumeActiveReconstruction } from './services/reconstructionSession';
 import { SavedSpacesController, SavedSpacesState, readSavedSpacesCache } from './services/savedSpaces';
 import { ViewerErrorBoundary } from './components/viewer/ViewerErrorBoundary';
 import { SpaceJob, ReconstructionEngine, AppView } from './types';
@@ -15,6 +16,7 @@ export const App: React.FC = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSubmittingUpload, setIsSubmittingUpload] = useState(false);
   const [currentJob, setCurrentJob] = useState<SpaceJob | null>(null);
+  const [pollWarning,setPollWarning]=useState('');
   const [engines, setEngines] = useState<ReconstructionEngine[]>([]);
   const [spacesState, setSpacesState] = useState<SavedSpacesState>(() => ({
     spaces: readSavedSpacesCache(sessionStorage), status: 'loading', error: '',
@@ -31,33 +33,29 @@ export const App: React.FC = () => {
   const [openingSpace, setOpeningSpace] = useState(false);
   const [openSpaceError, setOpenSpaceError] = useState('');
 
-  useEffect(() => {
-    // Retry cancellation after reload if the unload beacon did not arrive.
-    const abandoned = sessionStorage.getItem('activeReconstruction');
-    if (abandoned) {
-      try { api.cancelReconstruction(JSON.parse(abandoned)).then(() => sessionStorage.removeItem('activeReconstruction')).catch(console.error); }
-      catch { sessionStorage.removeItem('activeReconstruction'); }
+  const [restoreWarning,setRestoreWarning]=useState('');
+  const restoreGeneration=useRef(0);
+  const restoreSavedJob=async()=>{
+    const generation=++restoreGeneration.current;
+    try{
+      const job=await resumeActiveReconstruction(sessionStorage,id=>api.getJobStatus(id));
+      if(generation!==restoreGeneration.current)return;
+      setRestoreWarning('');
+      if(job){setCurrentJob(job);setView('processing');}
+    }catch{
+      if(generation===restoreGeneration.current)setRestoreWarning('Could not reconnect to the saved reconstruction. Your job was not cancelled or restarted.');
     }
-  }, []);
-
-  useEffect(() => {
-    if (currentJob?.status !== 'processing' || !currentJob.attempt_id) return;
-    const active = { job_id: currentJob.job_id, attempt_id: currentJob.attempt_id };
-    sessionStorage.setItem('activeReconstruction', JSON.stringify(active));
-    const abandon = () => {
-      navigator.sendBeacon(`/api/reconstruct/cancel/${active.job_id}`,
-        new Blob([JSON.stringify(active)], { type: 'application/json' }));
-    };
-    window.addEventListener('pagehide', abandon);
-    window.addEventListener('beforeunload', abandon);
-    return () => {
-      window.removeEventListener('pagehide', abandon);
-      window.removeEventListener('beforeunload', abandon);
-      sessionStorage.removeItem('activeReconstruction');
-    };
-  }, [currentJob?.job_id, currentJob?.attempt_id, currentJob?.status]);
+  };
+  useEffect(()=>{void restoreSavedJob();return ()=>{restoreGeneration.current++;};},[]);
+  useEffect(()=>{
+    if(!currentJob?.attempt_id)return;
+    if(currentJob.status==='processing'){
+      sessionStorage.setItem('activeReconstruction',JSON.stringify({job_id:currentJob.job_id,attempt_id:currentJob.attempt_id}));
+    }else sessionStorage.removeItem('activeReconstruction');
+  },[currentJob?.job_id,currentJob?.attempt_id,currentJob?.status]);
 
   const handleCancel = async () => {
+    ++restoreGeneration.current;setRestoreWarning('');
     if (currentJob?.status === 'processing') {
       try { await api.cancelReconstruction(currentJob); }
       catch (e: any) { alert(e.message); return; }
@@ -88,6 +86,7 @@ export const App: React.FC = () => {
   // Polling for active job status
   useEffect(() => {
     const generation = ++pollGeneration.current;
+    setPollWarning('');
     let pending = false;
     if (view === 'processing' && currentJob && !['completed','review_required','failed','cancelled'].includes(currentJob.status)) {
       pollIntervalRef.current = window.setInterval(async () => {
@@ -96,14 +95,16 @@ export const App: React.FC = () => {
         try {
           const updated = await api.getJobStatus(currentJob.job_id);
           if (generation !== pollGeneration.current) return;
-          setCurrentJob(updated);
+          setPollWarning('');
+          setCurrentJob(previous=>previous?.job_id===updated.job_id && previous.attempt_id===updated.attempt_id && updated.status==='processing'
+            ? {...updated,progress:Math.max(previous.progress||0,updated.progress||0)} : updated);
           if (['completed','review_required','failed','cancelled'].includes(updated.status)) {
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             // Refresh spaces list
             refreshSpaces();
           }
         } catch (e) {
-          console.error('Polling error:', e);
+          if(generation===pollGeneration.current)setPollWarning(e instanceof Error?e.message:'Connection to the job was lost. Retrying automatically.');
         } finally {
           pending = false;
         }
@@ -125,6 +126,7 @@ export const App: React.FC = () => {
     engineId: string,
     options: { knownRoomWidthM?: number; photographic?: boolean },
   ) => {
+    ++restoreGeneration.current;setRestoreWarning('');
     setIsSubmittingUpload(true);
     try {
       if (currentJob?.status === 'processing') await api.cancelReconstruction(currentJob);
@@ -160,11 +162,12 @@ export const App: React.FC = () => {
   };
 
   const handleRetry = async () => {
+    ++restoreGeneration.current;setRestoreWarning('');
     if (!currentJob || currentJob.status !== 'failed' || isRetrying) return;
     setIsRetrying(true);
     ++pollGeneration.current;
     try {
-      await api.startReconstruction(currentJob.job_id, currentJob.engine_id || 'photographic',
+      await api.startReconstruction(currentJob.job_id, currentJob.engine_id || 'resplat_experimental',
         currentJob.reconstruction_options || {}, crypto.randomUUID());
       // Read the acknowledged server state; a fast failure or completion must
       // not be overwritten with a fabricated processing state.
@@ -178,6 +181,7 @@ export const App: React.FC = () => {
   };
 
   const handleExploreSample = async () => {
+    ++restoreGeneration.current;setRestoreWarning('');
     try {
       if (currentJob?.status === 'processing') await api.cancelReconstruction(currentJob);
       const sampleJob = await api.generateSampleSpace();
@@ -185,11 +189,13 @@ export const App: React.FC = () => {
       setView('viewer');
       refreshSpaces();
     } catch (e: any) {
-      alert('Failed to launch sample studio: ' + e.message);
+      console.error('Failed to launch sample space:', e);
+      alert('The sample space could not be opened. Please try again.');
     }
   };
 
   const handleSelectSpace = async (space: SpaceJob) => {
+    ++restoreGeneration.current;setRestoreWarning('');
     const generation = ++selectionGeneration.current;
     setOpeningSpace(true);
     setOpenSpaceError('');
@@ -198,7 +204,7 @@ export const App: React.FC = () => {
       // Always hydrate the saved scene before mounting the viewer.
       const fullSpace = await api.getJobStatus(space.job_id);
       if (generation !== selectionGeneration.current) return;
-      const savedReview = fullSpace.status === 'review_required' && fullSpace.engine_id === 'resplat_experimental' && fullSpace.gaussian?.saved_to_recents === true && fullSpace.gaussian?.requires_review === true;
+      const savedReview = fullSpace.status === 'review_required' && ['resplat_experimental'].includes(fullSpace.engine_id || '') && fullSpace.gaussian?.saved_to_recents === true && fullSpace.gaussian?.requires_review === true && fullSpace.gaussian?.quality_accepted === false;
       if (fullSpace.status !== 'completed' && !savedReview) throw new Error('This saved room is not ready to open.');
       setCurrentJob(fullSpace);
       setView('viewer');
@@ -244,6 +250,7 @@ export const App: React.FC = () => {
           onCancel={handleCancel}
           onRetry={handleRetry}
           isRetrying={isRetrying}
+          connectionWarning={pollWarning}
         />
       )}
 
@@ -258,13 +265,22 @@ export const App: React.FC = () => {
         </ViewerErrorBoundary>
       )}
 
+      {restoreWarning && <div role="alert" className="fixed bottom-5 left-5 right-5 z-50 rounded-xl border border-amber-500/40 bg-[#1b1815] p-4 text-sm text-amber-100">{restoreWarning} <button className="underline" onClick={()=>void restoreSavedJob()}>Reconnect saved reconstruction</button></div>}
+
       {/* Upload Modal */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onSubmit={handleUploadSubmit}
         engines={engines}
-        onRefreshEngines={async()=>{setEngines(await api.getEngines());}}
+        onRefreshEngines={async(engineId)=>{
+          let connectionError:unknown;
+          try{if(engineId==='resplat_experimental')await api.reconnectResplat();}
+          catch(error){connectionError=error;}
+          const latest=await api.getEngines();
+          setEngines(latest);
+          if(connectionError&&latest.find(engine=>engine.id===engineId)?.can_run!==true)throw connectionError;
+        }}
         isSubmitting={isSubmittingUpload}
       />
     </div>

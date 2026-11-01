@@ -32,7 +32,15 @@ def world_rotations(values, cameras):
 def repair_export(source,destination,display_config):
     from .gaussian_geometry import read_ply,write_ply
     header,values=read_ply(source)
-    fixed=world_rotations(values,display_config['cameras'])
+    cameras=display_config['cameras']
+    context_names=display_config.get('reconstruction_context_names')
+    if context_names is not None:
+        lookup={camera['name']:camera for camera in cameras}
+        if (not context_names or len(context_names)!=len(set(context_names)) or
+                not set(context_names)<=lookup.keys()):
+            raise ValueError('Export context cameras do not match calibrated views')
+        cameras=[lookup[name] for name in context_names]
+    fixed=world_rotations(values,cameras)
     write_ply(destination,header,fixed)
     return dict(method='camera-local to joint covariance rotation',splats=len(fixed),
-                views=len(display_config['cameras']),positions_scales_opacity_color_unchanged=True)
+                views=len(cameras),positions_scales_opacity_color_unchanged=True)

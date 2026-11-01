@@ -30,23 +30,37 @@ export function createNavigation(data) {
   }
   return false;
  };
- function constrain(from,to){
+ function resolveOrigin(from){
+  if(!data.walking_plane||!blocked(from))return [...from];
+  let best=[...from],distance=Infinity;
+  const reach=Math.min(32,Math.ceil(radius*3/cell));
+  const x=Math.floor((from[0]-bounds.min[0])/cell),z=Math.floor((from[2]-bounds.min[2])/cell);
+  for(let j=z-reach;j<=z+reach;j++)for(let i=x-reach;i<=x+reach;i++){
+   const p=[bounds.min[0]+(i+.5)*cell,from[1],bounds.min[2]+(j+.5)*cell];
+   const d=Math.hypot(p[0]-from[0],p[2]-from[2]);
+   if(d<distance&&d<=radius*3&&!blocked(p)){best=p;distance=d;}
+  }
+  return best;
+ }
+ function constrain(from,to,{allowElevation=false}={}){
   if(!finiteVector(from,3))throw new Error('Invalid walking origin');
   if(!finiteVector(to,3))return [...from];
-  const result=[...from], target=[...to];
+  const result=resolveOrigin(from), target=[...to];
   // Walking, not flying: keep the capture's eye height. Camera selection may
   // still move to a different registered camera elevation.
-  target[1]=from[1];
+  const verticalMargin=Math.min(radius,(bounds.max[1]-bounds.min[1])*.49);
+  target[1]=allowElevation?Math.max(bounds.min[1]+verticalMargin,Math.min(bounds.max[1]-verticalMargin,to[1])):from[1];
   for(const axis of [0,2])target[axis]=Math.max(bounds.min[axis]+radius,Math.min(bounds.max[axis]-radius,target[axis]));
-  const distance=Math.hypot(target[0]-from[0],target[2]-from[2]);
+  const distance=Math.hypot(target[0]-result[0],target[2]-result[2]);
   const steps=Math.ceil(distance/Math.min(radius*.4,cell*.5))||1;
   // Reject unreasonable teleports rather than allowing tunnelling or hanging.
   if(steps>10000)return result;
-  const delta=[(target[0]-from[0])/steps,0,(target[2]-from[2])/steps];
+  const delta=[(target[0]-result[0])/steps,0,(target[2]-result[2])/steps];
   for(let step=0;step<steps;step++)for(const axis of [0,2]){
    const candidate=[...result];candidate[axis]=Math.max(bounds.min[axis]+radius,Math.min(bounds.max[axis]-radius,result[axis]+delta[axis]));
    if(!blocked(candidate))result[axis]=candidate[axis];
   }
+  if(allowElevation&&!blocked([result[0],target[1],result[2]]))result[1]=target[1];
   return result;
  }
  return {constrain,blocked,inspect:()=>({bounds,radius,occupiedCells:occupied.size,source:data.source||'estimated multi-view depth'})};

@@ -20,6 +20,7 @@ describe('Your Spaces collection', () => {
     expect(render('loading', [])).toContain('Loading saved spaces');
     expect(render('loading', [])).not.toContain('Your collection begins here');
     expect(render('error', [], 'HTTP 503')).toContain('Retry');
+    expect(render('error', [], 'HTTP 503')).not.toContain('HTTP 503');
     expect(render('error', [], 'HTTP 503')).not.toContain('Your collection begins here');
     expect(render('ready', [])).toContain('Your collection begins here');
   });
@@ -29,6 +30,7 @@ describe('Your Spaces collection', () => {
     expect(html).toContain('data-testid="space-hall-1"');
     expect(html).toContain('data-testid="space-hall-2"');
     expect(html).toContain('Showing the last loaded collection');
+    expect(html).not.toContain('HTTP 503');
   });
   it('reports the visible card count rather than claiming all cards are shown', () => {
     const html = render('ready', Array.from({ length: 13 }, (_, index) => space(index)));

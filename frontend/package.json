@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "start": "node server.mjs",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run src && node --test server.test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "10.7.8",
@@ -19,7 +20,8 @@
     "react-dom": "19.2.0",
     "tailwind-merge": "^2.3.0",
     "three": "0.185.1",
-    "three-stdlib": "^2.30.0"
+    "three-stdlib": "^2.30.0",
+    "@sparkjsdev/spark": "2.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",

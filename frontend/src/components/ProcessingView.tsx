@@ -8,29 +8,9 @@ interface ProcessingViewProps {
   onCancel: () => void;
   onRetry: () => void;
   isRetrying: boolean;
+  connectionWarning?: string;
 }
 
-const STAGES = [
-  { id: 1, label: 'Load Room Photo', minPct: 5 },
-  { id: 2, label: 'Analyze Room Structure', minPct: 20 },
-  { id: 3, label: 'Identify Visible Objects', minPct: 30 },
-  { id: 4, label: 'SAM 2 + MoGe Placement', minPct: 54 },
-  { id: 5, label: 'Constrained GLB Compilation', minPct: 80 },
-];
-const PHOTOGRAPHIC_STAGES = [
-  {id:1,label:'Load Photos / Video',minPct:5},
-  {id:2,label:'COLMAP + Brush Training',minPct:35},
-  {id:3,label:'Photographic Refinement',minPct:70},
-  {id:4,label:'Depth, Walls + Collisions',minPct:90},
-  {id:5,label:'Publish Walkthrough',minPct:100},
-];
-const VGGT_STAGES = [
-  {id:1,label:'Check Local Runtime',minPct:5},
-  {id:2,label:'COLMAP / Joint Inputs',minPct:15},
-  {id:3,label:'VGGT Camera + Depth',minPct:30},
-  {id:4,label:'Validate Static Preview',minPct:75},
-  {id:5,label:'Review — Not Published',minPct:100},
-];
 const RESPLAT_STAGES = [
   {id:1,label:'Check CUDA Runtime',minPct:5},
   {id:2,label:'COLMAP Cameras',minPct:15},
@@ -45,6 +25,7 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
   onCancel,
   onRetry,
   isRetrying,
+  connectionWarning,
 }) => {
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +35,11 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
 
   const isCompleted = job.status === 'completed';
   const isReview = job.status === 'review_required';
-  const isFailed = job.status === 'failed';
+  const isCancelled=job.status==='cancelled';
+  const isFailed = job.status === 'failed' || isCancelled;
+  const isTerminal=isCompleted||isReview||isFailed;
+  const activity=job.status==='processing'?job.runtime_activity:undefined;
+  const duration=(seconds:number)=>`${Math.floor(seconds/60)}m ${Math.floor(seconds%60)}s`;
   const usedLocalFallback = job.metrics?.extra_details?.lighting?.analysis_quality === 'local_fallback';
   const analysisWarning = job.metrics?.extra_details?.lighting?.analysis_warning;
   const fineShapesOnly = typeof analysisWarning === 'string' && /^Fine shapes use reusable approximate geometry: [\w, ]+\.$/.test(analysisWarning.trim());
@@ -69,9 +54,9 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
       <div className="relative z-10 w-full max-w-3xl mx-auto flex flex-col items-center text-center">
         {/* Spatial Radar / Scanner Animation */}
         <div className="relative w-36 h-36 mb-8 flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full border border-[#d5360c]/20 animate-ping opacity-25" />
-          <div className="absolute inset-2 rounded-full border border-[#d5360c]/40 animate-spin-slow" />
-          <div className="absolute inset-6 rounded-full border-t-2 border-[#e6d5bd] animate-spin" />
+          <div className={`absolute inset-0 rounded-full border border-[#d5360c]/20 opacity-25 ${isTerminal?'':'animate-ping'}`} />
+          <div className={`absolute inset-2 rounded-full border border-[#d5360c]/40 ${isTerminal?'':'animate-spin-slow'}`} />
+          <div className={`absolute inset-6 rounded-full border-t-2 border-[#e6d5bd] ${isTerminal?'':'animate-spin'}`} />
           <div className="w-20 h-20 rounded-full bg-[#d5360c]/10 backdrop-blur-md border border-[#d5360c]/40 flex items-center justify-center shadow-lg shadow-[#d5360c]/30">
             {isCompleted ? (
               <CheckCircle2 className="w-10 h-10 text-[#e6d5bd]" />
@@ -85,19 +70,35 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
 
         {/* Status Heading */}
         <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-2">
-          {isReview ? `${job.engine_id==='resplat_experimental'?'ReSplat':'VGGT'} Experimental Preview — Review Required` : isCompleted
-            ? (analysisWarning ? (fineShapesOnly ? '3D Room Ready — Approximate Details' : 'Partial 3D Room — Review Needed') : '3D Spatial Room Ready')
+          {isCancelled ? 'Reconstruction Cancelled' : isReview ? `$ReSplat Experimental Preview — Review Required` : isCompleted
+            ? (analysisWarning ? (fineShapesOnly ? '3D room ready — approximate details' : 'Partial 3D room — review needed') : '3D room ready to inspect')
             : isFailed
-            ? (job.error_code === 'analysis_quota_exhausted' ? 'Photo Analysis Daily Quota Reached' : job.error_code === 'analysis_service_unavailable' ? 'Photo Analysis Service Is Busy' : job.error_code === 'analysis_incomplete' ? 'Full Reconstruction Not Verified' : 'Reconstruction Encountered An Error')
-            : 'Reconstructing 3D Spatial Space'}
+            ? (job.error_code === 'analysis_quota_exhausted' ? 'Photo Analysis Daily Quota Reached' : job.error_code === 'analysis_service_unavailable' ? 'Photo Analysis Service Is Busy' : job.error_code === 'analysis_incomplete' ? 'Full Reconstruction Not Verified' : 'Reconstruction could not finish')
+            : 'Reconstructing your room'}
         </h2>
         <p className="text-sm text-gray-400 max-w-md mb-8">
-          {isReview ? 'This preview is unverified and is not in Recents. Inspect translated views and Geometry check; distortion, hidden surfaces and scale are not confirmed accurate.' : isCompleted
+          {isCancelled ? 'Processing has stopped. Your upload is saved; use Retry reconstruction to start another attempt.' : isReview ? job.gaussian?.saved_to_recents ? 'This preview is saved in Your Spaces for review, but quality has not been verified. Move to different viewpoints to inspect the geometry; distortion, hidden surfaces and scale may be inaccurate.' : 'This preview is unverified and is not in Your Spaces. Move to different viewpoints and inspect the geometry. Distortion, hidden surfaces and scale may be inaccurate.' : isCompleted
             ? (job.gaussian?.status === 'ready' ? (job.glb_url?'Photographic and editable room views are ready. Hidden surfaces and accurate scale remain unverified.':'Your photographic walkthrough is ready. Unseen wall completion and collision geometry are estimates; scale is unmeasured.') : 'Your estimated room layout is ready as separate 3D objects. Sizes and depths are inferred, not measured.')
             : isFailed
-            ? (job.error || 'Failed to process spatial media')
-            : job.stage || 'Analyzing the photo and estimating the visible room layout...'}
+            ? (job.error || 'We could not process this capture. Please try again.')
+            : job.stage || 'Analyzing your capture and estimating the visible room layout…'}
         </p>
+
+        {connectionWarning && <div role="alert" className="mb-6 w-full max-w-xl rounded-xl border border-amber-500/40 p-4 text-left text-sm text-amber-100">{connectionWarning} No new progress is confirmed until the connection returns.</div>}
+        {!isTerminal && job.processing_budget && <div role="status" className="mb-6 w-full max-w-xl rounded-xl border border-white/15 p-4 text-left text-sm text-gray-300">
+          <p>Processing: {duration(job.processing_budget.elapsed_seconds)} · five-minute benchmark: {duration(job.processing_budget.remaining_seconds)} remaining</p>
+          <p>Preview target: 3 minutes · completed-room benchmark: 5 minutes.</p>
+          {job.processing_budget.deadline_exceeded ? <p>The five-minute benchmark was missed. Processing continues; a completed room is not yet confirmed.</p> : job.processing_budget.soft_target_exceeded && <p>The preview target was missed. Validation is still required; a completed room is not yet confirmed.</p>}
+          <p className="mt-1 text-xs text-gray-400">Upload, queue and GPU startup are separate. The benchmark does not stop processing or publish an unfinished room. Your GPU session and safety limits still apply.</p>
+        </div>}
+        {activity && <div role="status" className="mb-6 w-full max-w-xl rounded-xl border border-white/15 p-4 text-left text-sm text-gray-300">
+          <strong>{activity.label}</strong>
+          {activity.total && <p>{activity.current} / {activity.total} {activity.unit}</p>}
+          <p>Current step: {duration(activity.elapsed_seconds)} · step time limit remaining: {duration(activity.remaining_seconds)}</p>
+          <p>{activity.heartbeat_stale ? 'Worker heartbeat is delayed; completion is not confirmed.' : `Worker heartbeat received ${activity.heartbeat_age_seconds}s ago.`}</p>
+          {activity.output_age_seconds>90 && <p>The solver has not written new output for {duration(activity.output_age_seconds)}. It remains bounded by the step time limit.</p>}
+          <p className="mt-1 text-xs text-gray-400">The percentage estimates pipeline stages. Frame and matching counters report actual processing work.</p>
+        </div>}
 
         {isCompleted && job.gaussian?.reason && <div role="status" className="mb-6 max-w-xl rounded-xl border border-white/15 p-4 text-left text-sm text-gray-300">{job.gaussian.reason}</div>}
         {isCompleted && analysisWarning && (
@@ -108,10 +109,10 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
         )}
         {isCompleted && alignment && (
           <div className="w-full max-w-xl rounded-xl border border-[#d5360c]/25 bg-[#d5360c]/5 p-4 mb-6 text-left text-sm text-gray-200">
-            <h3 className="font-semibold text-white mb-2">Editable room photo alignment check</h3>
+            <h3 className="font-semibold text-white mb-2">Photo alignment check</h3>
             {typeof alignment.before_iou === 'number' && typeof alignment.after_iou === 'number' ? (
               <>
-                <p>Detected-mask overlap: {alignment.before_iou.toFixed(2)} → {alignment.after_iou.toFixed(2)} (0–1).</p>
+                <p>Detected-shape overlap: {alignment.before_iou.toFixed(2)} → {alignment.after_iou.toFixed(2)} (0–1).</p>
                 <p>{alignment.status === 'corrected' ? 'Safe corrections were kept and the exported model was rechecked.' : 'The original layout was kept because no verified improvement was available.'}</p>
                 {reviewObjects.length > 0 && <p className="text-amber-200 mt-2">Check these objects: {reviewObjects.map((item: { label: string }) => item.label.replace(/_/g, ' ')).join(', ')}.</p>}
               </>
@@ -139,7 +140,7 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
 
         {/* Pipeline Stepper */}
         <div className="w-full max-w-xl grid grid-cols-1 sm:grid-cols-5 gap-2 mb-8">
-          {(job.engine_id==='resplat_experimental'?RESPLAT_STAGES:job.engine_id==='vggt_experimental'?VGGT_STAGES:job.engine_id==='photographic'?PHOTOGRAPHIC_STAGES:STAGES).map((s) => {
+          {RESPLAT_STAGES.map((s) => {
             const isDone = (job.progress || 0) >= s.minPct;
             const isCurrent = !isDone && (job.progress || 0) >= (s.minPct - 20);
             return (
@@ -183,24 +184,19 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
         </div>
 
         {/* Metrics Card upon completion */}
-        {isCompleted && usedLocalFallback && (
-          <div className="w-full max-w-xl mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-left text-xs text-amber-100">
-            Gemini was unavailable for this run, so the result used lower-accuracy local image analysis. Re-run the photo for precise object placement.
-          </div>
-        )}
 
         {isCompleted && job.metrics && (
           <div className="w-full max-w-xl glass-panel p-4 rounded-2xl mb-8 text-left grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
-              <div className="text-[10px] text-gray-400 font-mono uppercase">Room Dimensions</div>
+              <div className="text-[10px] text-gray-400 font-mono uppercase">Estimated room dimensions</div>
               <div className="text-sm font-bold text-white mt-0.5">
-                {job.engine_id === 'photographic' ? 'Unmeasured capture' : `${job.metrics.estimated_room_width}m × ${job.metrics.estimated_room_length}m`}
+                {job.engine_id === 'resplat_experimental' ? 'Unmeasured capture' : `${job.metrics.estimated_room_width}m × ${job.metrics.estimated_room_length}m`}
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-gray-400 font-mono uppercase">Room Height</div>
+              <div className="text-[10px] text-gray-400 font-mono uppercase">Estimated room height</div>
               <div className="text-sm font-bold text-white mt-0.5">
-                {job.engine_id === 'photographic' ? 'Unmeasured' : `${job.metrics.estimated_room_height}m`}
+                {job.engine_id === 'resplat_experimental' ? 'Unmeasured' : `${job.metrics.estimated_room_height}m`}
               </div>
             </div>
             <div>
@@ -225,7 +221,7 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
             className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-[#d5360c] hover:bg-[#b82e0a] text-white font-bold text-sm shadow-xl shadow-[#d5360c]/30 hover:scale-[1.03] active:scale-[0.98] transition-all cursor-pointer"
           >
             <Sparkles className="w-4 h-4" />
-            <span>{isReview ? 'Inspect Experimental Preview' : 'Enter Immersive 3D Space'}</span>
+            <span>{isReview ? 'Inspect Experimental Preview' : 'Explore 3D room'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         ) : isFailed ? (
@@ -234,7 +230,7 @@ export const ProcessingView: React.FC<ProcessingViewProps> = ({
             disabled={isRetrying}
             className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-colors"
           >
-            {isRetrying ? 'Starting retry...' : 'Retry Same Upload'}
+            {isRetrying ? 'Starting retry...' : 'Retry reconstruction'}
           </button>
         ) : (
           <button

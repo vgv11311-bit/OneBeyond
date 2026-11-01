@@ -1,6 +1,0 @@
-# Optional intake/fusion extras. Install in an isolated worker environment.
-pillow-heif==1.8.1
-Pillow==12.3.0
-
-# Experimental CPU TSDF extraction/tests; not required by the default static merge.
-scikit-image==0.25.2

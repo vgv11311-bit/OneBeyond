@@ -32,7 +32,7 @@ from config import (
 from reconstruction.engine_registry import EngineRegistry
 from reconstruction.process_lock import process_lock
 from reconstruction.capture_intake import inspect_photo, inspect_video
-from reconstruction.gaussian_pipeline import build_companion, requested as gaussian_requested, renderer_root
+from reconstruction.viewer_assets import renderer_root
 
 # Keep Flask's automatic static route off the root path. The catch-all below
 # serves built assets and lets client-side pages load on a direct visit/refresh.
@@ -152,9 +152,11 @@ def health_check():
 
 @app.route("/api/engines", methods=["GET"])
 def get_engines():
-    return jsonify({
+    response=jsonify({
         "engines": EngineRegistry.list_engines()
     })
+    response.headers['Cache-Control']='no-store, max-age=0'
+    return response
 
 
 @app.route("/api/upload", methods=["POST"])
@@ -286,7 +288,7 @@ def run_reconstruction_worker(job_id: str, engine_id: str, options: Dict[str, An
     def progress_callback(pct: float, stage: str, extra: Optional[Dict[str, Any]] = None, raw=False):
         current = load_job_state(job_id)
         if current:
-            current["progress"] = round(min(pct * .85, 85) if gaussian_requested(engine_id, options) and not raw else pct, 1)
+            current["progress"] = round(pct, 1)
             current["stage"] = stage
             current["logs"].append(f"[{time.strftime('%H:%M:%S')}] {stage}")
             if extra:
@@ -305,12 +307,6 @@ def run_reconstruction_worker(job_id: str, engine_id: str, options: Dict[str, An
         )
 
         photographic = getattr(result, 'gaussian', None)
-        if result.success and gaussian_requested(engine_id, options):
-            current = load_job_state(job_id) or job_state
-            current['companion_started_at'] = time.time()
-            save_job_state(job_id,current)
-            photographic = build_companion(job_id, job_state.get('file_paths', []), output_dir,
-                lambda pct, stage: progress_callback(pct, stage, raw=True), result)
         final_state = load_job_state(job_id) or job_state
         # Never keep an earlier attempt's photographic artifact after a retry.
         final_state.pop('gaussian', None)
@@ -321,7 +317,7 @@ def run_reconstruction_worker(job_id: str, engine_id: str, options: Dict[str, An
             final_state.pop('error_code',None)
             final_state.pop('retry_after_seconds',None)
             final_state['error']=None
-            experimental_review = engine_id in {'vggt_experimental','resplat_experimental'}
+            experimental_review = engine_id in {'resplat_experimental'}
             final_state["status"] = "review_required" if experimental_review else "completed"
             final_state["progress"] = 100.0
             final_state["stage"] = "Experimental preview ready — review required; not in Recents" if experimental_review else "Reconstruction complete"
@@ -342,7 +338,7 @@ def run_reconstruction_worker(job_id: str, engine_id: str, options: Dict[str, An
             }
             if photographic is not None:
                 final_state['metrics']['extra_details'] = dict(result.metrics.extra_details or {},
-                    **({'semantic_processing_duration_sec': result.metrics.processing_duration_sec} if engine_id not in {'photographic','vggt_experimental','resplat_experimental'} else {}),
+                    **({'semantic_processing_duration_sec': result.metrics.processing_duration_sec} if engine_id not in {'resplat_experimental'} else {}),
                     gaussian_status=photographic['status'])
                 final_state['metrics']['processing_duration_sec'] = round(time.monotonic()-worker_started,3)
         else:
@@ -382,28 +378,13 @@ def supervise_reconstruction(job_id, engine_id, options):
             process = subprocess.Popen([sys.executable, str(Path(__file__).with_name('job_runner.py')), job_id],
                                        cwd=str(Path(__file__).parent), env=env, stdout=log, stderr=log)
             WORKERS[job_id] = process
-            # Existing semantic stage retains its budget; photographic jobs also
-            # include bounded matching, two training passes and lock acquisition.
-            # Long video training (3300s) plus bounded depth/walk finishing
-            # (360s + 600s) must fit inside the supervisor's outer deadline.
-            if engine_id=='vggt_experimental':
-                from reconstruction.vggt_engine import settings as vggt_settings
-                vg_config=vggt_settings()
-                worker_limit=(2100 if vg_config['device']=='cpu' else 900)+(600 if vg_config['use_colmap'] else 0)
-            elif engine_id=='resplat_experimental':
-                worker_limit=1950
-            else:
-                worker_limit=5100 if engine_id=='photographic' else (1900 if gaussian_requested(engine_id, options) else 600)
+            from reconstruction.resplat_policy import SAFETY_LIMIT_SECONDS
+            worker_limit=SAFETY_LIMIT_SECONDS
             deadline = time.monotonic() + worker_limit
-            semantic_deadline = time.monotonic() + 600
             while True:
                 if attempt_id and cancellation_path(job_id, attempt_id).exists():
                     stop_worker(process)
                     return
-                if time.monotonic() >= semantic_deadline:
-                    current = load_job_state(job_id) or {}
-                    if engine_id not in {'photographic','vggt_experimental','resplat_experimental'} and not current.get('companion_started_at'):
-                        raise subprocess.TimeoutExpired(process.args,600)
                 try:
                     process.wait(timeout=min(1, max(.01, deadline-time.monotonic())))
                     break
@@ -427,9 +408,13 @@ def supervise_reconstruction(job_id, engine_id, options):
         final = load_job_state(job_id) or state
         if final.get('status') in {'completed', 'review_required', 'cancelled'} or final.get('attempt_id', '') != attempt_id:
             return
-        message = ('Reconstruction exceeded its worker time limit. Your upload and settings are saved; retry it.'
+        resplat_timeout=engine_id=='resplat_experimental' and isinstance(exc,subprocess.TimeoutExpired)
+        message = ('Reconstruction exceeded its safety time limit. '
+                   'Your upload and completed camera work are saved. No unfinished room was published.' if resplat_timeout else
+                   'Reconstruction exceeded its worker time limit. Your upload and settings are saved; retry it.'
                    if isinstance(exc, subprocess.TimeoutExpired) else str(exc))
-        final.update(status='failed', stage='Reconstruction stopped safely', error=message, error_code='worker_stopped')
+        final.update(status='failed', stage='Reconstruction stopped safely', error=message,
+                     error_code='resplat_safety_limit_exceeded' if resplat_timeout else 'worker_stopped')
         final.setdefault('logs', []).append(message)
         save_job_state(job_id, final)
     finally:
@@ -465,6 +450,15 @@ def cancel_reconstruction(job_id):
     return jsonify({'status': state['status']})
 
 
+@app.route('/api/reconstruction/resplat/connect',methods=['POST'])
+def connect_resplat_runtime():
+    from reconstruction.resplat_remote import connect_running_worker
+    result=connect_running_worker()
+    response=jsonify(result);response.status_code=200 if result['can_run'] else 409
+    response.headers['Cache-Control']='no-store, max-age=0'
+    return response
+
+
 @app.route("/api/reconstruct", methods=["POST"])
 def start_reconstruction():
     """
@@ -475,15 +469,13 @@ def start_reconstruction():
         return jsonify({'error':'Request body must be a JSON object'}),400
     job_id = data.get("job_id")
     saved = load_job_state(job_id) if valid_job_id(job_id) else None
-    engine_id = data.get("engine_id", (saved or {}).get("engine_id", "photographic"))
+    engine_id = data.get("engine_id", (saved or {}).get("engine_id", "resplat_experimental"))
     options = data.get("options", (saved or {}).get("reconstruction_options", {}))
 
     if not valid_job_id(job_id) or not isinstance(options,dict):
         return jsonify({'error':'Provide a valid job_id and an options object'}),400
     if not isinstance(engine_id,str) or engine_id not in EngineRegistry._engines:
         return jsonify({'error':'Unknown reconstruction engine'}),400
-    if 'photographic' in options and not isinstance(options['photographic'], bool):
-        return jsonify({'error':'photographic must be true or false'}),400
 
     if not job_id:
         return jsonify({"error": "Missing job_id parameter"}), 400
@@ -495,36 +487,37 @@ def start_reconstruction():
     if job_state.get("status") == "processing":
         return jsonify({"message": "Job is already being processed", "job_id": job_id}), 200
 
-    if engine_id in {'vggt_experimental','resplat_experimental'}:
-        if engine_id=='vggt_experimental':
-            from reconstruction.vggt_engine import availability
-        else:
-            from reconstruction.resplat_engine import availability
+    if engine_id in {'resplat_experimental'}:
+        from reconstruction.resplat_engine import availability
         if job_state.get('status')=='completed':
             return jsonify(error='Preserve the saved room. Upload a new experimental job to evaluate the selected engine.'),409
-        if job_state.get('input_type')!='photos' or not 5<=len(job_state.get('file_paths',[]))<=10:
-            return jsonify(error='Experimental mode requires 5–10 distinct photos. Use Photographic room for walkthrough video.'),400
+        experimental_photos=(job_state.get('input_type')=='photos' and 5<=len(job_state.get('file_paths',[]))<=10)
+        resplat_video=(engine_id=='resplat_experimental' and job_state.get('input_type')=='video'
+                       and len(job_state.get('file_paths',[]))==1)
+        if not (experimental_photos or resplat_video):
+            return jsonify(error='Experimental mode requires 5–10 distinct photos; ReSplat also accepts one walkthrough video.'),400
+        if resplat_video:
+            from reconstruction.resplat_policy import validate_video_duration
+            try:
+                duration=(job_state.get('video_checks') or {}).get('duration_seconds')
+                if duration is not None:validate_video_duration(duration)
+            except ValueError as error:
+                return jsonify(error=str(error),error_code='resplat_capture_invalid'),400
         fingerprints=job_state.get('input_fingerprints')
         if fingerprints and len(set(fingerprints))!=len(fingerprints):
             return jsonify(error='Experimental mode requires distinct photos, not duplicated files.'),400
-        ready=availability(views=len(job_state['file_paths'])) if engine_id=='vggt_experimental' else availability()
+        ready=availability()
+        if engine_id=='resplat_experimental' and (ready.get('availability_code','').startswith('resplat_remote_') or
+                                                  ready.get('availability_code')=='resplat_approved_remote_session'):
+            from reconstruction.resplat_remote import read_configuration,connect_running_worker
+            connection=read_configuration()
+            if connection and connection.get('connection_mode')=='manual_vm_start':
+                connected=connect_running_worker()
+                if not connected['can_run']:
+                    return jsonify(error=connected['availability_message'],error_code=connected['availability_code']),409
+                ready=availability()
         if not ready['can_run']:
             return jsonify(error=ready['availability_message'],error_code=ready['availability_code']),409
-
-    if engine_id == 'photographic' and job_state.get('input_type') == 'photos' and len(job_state.get('file_paths', [])) < 3:
-        return jsonify({'error': 'Photographic reconstruction needs at least 3 distinct overlapping photos. We recommend 5–8 views from different positions, up to 10 for extra coverage.'}), 400
-    if engine_id == 'photographic' and job_state.get('input_type') == 'photos' and job_state.get('input_fingerprints') and len(set(job_state['input_fingerprints'])) < 3:
-        return jsonify({'error': 'These uploads contain fewer than 3 distinct photos. Retake overlapping views from different positions.'}), 400
-    if job_state.get('input_type') == 'video' and engine_id != 'photographic':
-        return jsonify({'error': 'Choose Photographic room for walkthrough video reconstruction.'}), 400
-
-    # The curated sample generator never reads uploaded media. It must not be
-    # selectable as a photo reconstruction engine because doing so makes every
-    # different upload produce the same fixed demonstration room.
-    if job_state.get("input_type") == "photos" and engine_id == "sample_architectural":
-        engine_id = "gemini_scene"
-        job_state["logs"].append("Sample engine ignored for an uploaded photo; using Gemini photo reconstruction.")
-        save_job_state(job_id, job_state)
 
     with START_LOCK:
         # Reserve before launching; a second click must not start another
@@ -578,6 +571,15 @@ def get_reconstruction_status(job_id: str):
     if job_state.get('status') == 'processing':
         elapsed = max(0, int(time.time() - job_state.get('queued_at', time.time())))
         job_state['elapsed_seconds'] = elapsed
+        if job_state.get('engine_id')=='resplat_experimental':
+            from reconstruction.resplat_policy import timing_state
+            job_state['processing_budget']=timing_state(job_state.get('started_at',job_state.get('queued_at',time.time())),time.time())
+        from reconstruction.stage_activity import job_activity
+        activity=job_activity(SPACES_DIR/job_id,job_state)
+        if activity:
+            job_state['runtime_activity']=activity
+            job_state['stage']=activity['label']
+            job_state['progress']=max(job_state.get('progress',0),activity.get('pipeline_progress',0))
     return jsonify(job_state)
 
 
@@ -622,11 +624,9 @@ def gaussian_asset(job_id, revision, asset):
     state = load_job_state(job_id)
     prefix = f'/api/spaces/{job_id}/gaussian/{revision}'
     photographic = (state or {}).get('gaussian') or {}
-    is_vggt=(state or {}).get('engine_id')=='vggt_experimental'
     is_resplat=(state or {}).get('engine_id')=='resplat_experimental'
-    bound_artifact=(photographic.get('config_url')==prefix+'/config.json' and photographic.get('requires_review') is True
-                    if is_vggt else photographic.get('ply_url')==prefix+'/scene.ply')
-    permitted_status=state and (state.get('status')=='review_required' if is_vggt or is_resplat else state.get('status')=='completed')
+    bound_artifact=photographic.get('ply_url')==prefix+'/scene.ply'
+    permitted_status=state and state.get('status')=='review_required' and is_resplat
     if not permitted_status or photographic.get('status')!='ready' or not bound_artifact:
         return jsonify(error='Photographic result not available'), 404
     if asset == 'viewer':
@@ -653,8 +653,6 @@ def gaussian_asset(job_id, revision, asset):
         return response
     if asset not in {'scene.ply', 'config.json', 'solid.glb', 'surface.glb'} and not re.fullmatch(r'surface-\d{2}\.glb',asset):
         return jsonify(error='Not found'), 404
-    if is_vggt and asset not in {'config.json','surface-99.glb'}:
-        return jsonify(error='Not found'),404
     if is_resplat and asset not in {'config.json','scene.ply'}:
         return jsonify(error='Not found'),404
     target = SPACES_DIR / job_id / 'gaussian' / revision / asset
@@ -688,12 +686,12 @@ def list_spaces():
                         attempt=meta.get('attempt_id')
                         cancelled=attempt and cancellation_path(space_dir.name,attempt).exists()
                         saved_review = (meta.get('status') == 'review_required'
-                                        and meta.get('engine_id') == 'resplat_experimental'
+                                        and meta.get('engine_id') in {'resplat_experimental'}
                                         and (meta.get('gaussian') or {}).get('saved_to_recents') is True
                                         and (meta.get('gaussian') or {}).get('requires_review') is True
                                         and (meta.get('gaussian') or {}).get('quality_accepted') is False)
                         if not cancelled and (saved_review or (meta.get("status") == "completed"
-                                and meta.get('engine_id') not in {'vggt_experimental','resplat_experimental'}
+                                and meta.get('engine_id') not in {'resplat_experimental'}
                                 and not (meta.get('gaussian') or {}).get('requires_review'))):
                             metrics=meta.get('metrics') or {}
                             # Gallery cards need dimensions, not per-pixel maps,
@@ -725,47 +723,7 @@ def list_spaces():
 
 @app.route("/api/sample/generate", methods=["POST"])
 def generate_sample_space():
-    """
-    Instantly generates a curated sample architectural space for rapid testing.
-    """
-    job_id = f"sample-{uuid.uuid4().hex[:6]}"
-    output_dir = SPACES_DIR / job_id
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    engine = EngineRegistry.get_engine("sample_architectural")
-    result = engine.reconstruct(
-        job_id=job_id,
-        input_type="sample",
-        file_paths=[],
-        output_dir=output_dir,
-    )
-
-    state = {
-        "job_id": job_id,
-        "name": "One Beyond - Furnished Sample Home",
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "status": "completed",
-        "input_type": "sample",
-        "files_count": 0,
-        "progress": 100.0,
-        "stage": "Reconstruction complete",
-        "logs": ["Generated a furnished sample home from the reusable original asset library."],
-        "glb_url": f"/api/spaces/{job_id}/model.glb",
-        "metrics": {
-            "total_frames_processed": 0,
-            "keypoints_detected": 0,
-            "points_3d_triangulated": 0,
-            "estimated_room_width": 8.0,
-            "estimated_room_length": 10.0,
-            "estimated_room_height": 3.0,
-            "processing_duration_sec": result.metrics.processing_duration_sec,
-            "engine_name": engine.name,
-            "extra_details": result.metrics.extra_details,
-        },
-    }
-    save_job_state(job_id, state)
-
-    return jsonify(state), 201
+    return jsonify(error='No sample is bundled. Upload a room and review its reconstruction.'), 404
 
 
 @app.route("/", defaults={"path": ""})
@@ -783,8 +741,6 @@ def serve_frontend(path):
 
 
 if __name__ == "__main__":
-    from reconstruction.warm_models import start as start_warm_models
-    start_warm_models()
     print(f"==================================================")
     print(f"  ONE BEYOND - Spatial Computing Server")
     print(f"  Running at http://localhost:{PORT}")

@@ -405,15 +405,21 @@ body:has(.aethera-page) { background: var(--ob-paper); }
 
 @media (max-width: 760px) {
   .blueprint-stage { min-height: 32rem; }
+  .blueprint-canvas:empty::before { content: ""; position: absolute; inset: 0; background: url('/blueprint-mobile-plan.svg') center 24% / min(105vw, 33rem) auto no-repeat; opacity: .8; }
+  .blueprint-canvas canvas { transform: translateY(-6svh); }
   .blueprint-top { top: 6.5rem; left: 1.25rem; right: 1.25rem; }
   .blueprint-top span:last-child { display: none; }
-  .blueprint-copy { left: 1.25rem; right: 1.25rem; bottom: 6.5rem; width: auto; }
+  .blueprint-copy { left: 1.25rem; right: 1.25rem; bottom: 5.5rem; width: auto; }
   .blueprint-copy h1,
-  .blueprint-copy h2 { font-size: clamp(3.4rem, 13vw, 5.8rem); }
+  .blueprint-copy h2 { font-size: clamp(2.75rem, 10.5vw, 4.4rem); }
   .blueprint-copy > p:not(.section-kicker) { max-width: 25rem; }
-  .blueprint-stage::after { background: linear-gradient(0deg, rgba(16,16,16,.92) 0%, rgba(16,16,16,.65) 43%, transparent 85%); }
+  .blueprint-stage::after { background: linear-gradient(0deg, rgba(16,16,16,.9) 0%, rgba(16,16,16,.55) 38%, transparent 74%); }
   .blueprint-scroll-cue { right: 1.25rem; bottom: 2.4rem; font-size: .55rem; }
   .blueprint-fallback svg { width: 88vw; margin-top: -8rem; }
+  .blueprint-mobile-fallback svg { width: min(105vw, 33rem); margin-top: -14svh; opacity: .8; transform: none; stroke: #d8a88c; stroke-width: 3; stroke-linejoin: round; }
+  .blueprint-mobile-fallback .blueprint-plan-floor { fill: #241f1a; stroke: #e3542a; }
+  .blueprint-mobile-fallback .blueprint-plan-furniture { stroke: #e6d5bd; stroke-width: 2.5; }
+  .blueprint-mobile-fallback .blueprint-plan-window { fill: #b7c7bf; fill-opacity: .18; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -425,7 +431,11 @@ body:has(.aethera-page) { background: var(--ob-paper); }
 }
 
 /* Shared navigation remains legible through every beat of the homepage story. */
+.aethera-nav-persistent { pointer-events: none; }
+.aethera-nav-persistent .site-nav-surface { pointer-events: auto; padding: .75rem 1rem; border: 1px solid rgba(230,213,189,.24); border-radius: 1.5rem; background: rgba(16,16,16,.88); color: var(--ob-ivory); box-shadow: 0 18px 48px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.12); backdrop-filter: blur(22px) saturate(145%); -webkit-backdrop-filter: blur(22px) saturate(145%); }
+.aethera-nav-persistent .site-mobile-menu-panel { pointer-events: auto; }
 .aethera-nav { position: absolute; color: var(--ob-ink); }
+.aethera-nav.aethera-nav-persistent { position: fixed; }
 .aethera-nav-home { position: fixed; background: rgba(16,16,16,.83); border-bottom: 1px solid rgba(230,213,189,.14); backdrop-filter: blur(14px); }
 .aethera-nav-subpage { position: fixed; min-height: 5.5rem; }
 .aethera-nav-subpage .site-nav-surface { padding: .75rem 1rem; border: 1px solid rgba(230,213,189,.22); border-radius: 1.4rem; background: rgba(16,16,16,.84); box-shadow: 0 18px 48px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.12); backdrop-filter: blur(22px) saturate(145%); -webkit-backdrop-filter: blur(22px) saturate(145%); opacity: 0; transform: translateY(calc(-100% - 2rem)); pointer-events: none; transition: opacity 220ms var(--ob-ease-out), transform 220ms var(--ob-ease-out); }
@@ -523,7 +533,7 @@ body:has(.aethera-page) { background: var(--ob-paper); }
   .aethera-button, .aethera-nav-link, .aethera-text-button { transition-duration: .01ms !important; }
   .aethera-button:hover { transform: none !important; }
 }
-@media (prefers-reduced-transparency: reduce) { .aethera-nav-home { background: var(--ob-ink); backdrop-filter: none; } }
+@media (prefers-reduced-transparency: reduce) { .aethera-nav-persistent .site-nav-surface { background: var(--ob-ink); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 @media (prefers-reduced-transparency: reduce) { .aethera-nav-subpage .site-nav-surface, .site-nav-peek { background: var(--ob-ink); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 @media (prefers-contrast: more) { .aethera-nav-subpage .site-nav-surface, .site-nav-peek { background: var(--ob-ink); border-color: var(--ob-ivory); } }
 @media (prefers-reduced-motion: reduce) {

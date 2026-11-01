@@ -1,0 +1,532 @@
+[
+  {
+    "path": ".gitignore",
+    "bytes": 236,
+    "sha256": "f5abd6dfbda930d7f06df38e36936d48894e1b0843249a82d3013161765ef880"
+  },
+  {
+    "path": "backend/app.py",
+    "bytes": 36313,
+    "sha256": "a6f6f819066f7a245816beb8faf71c37a22aa578761e417bf0202de2307ec811"
+  },
+  {
+    "path": "backend/colmap_prepare.py",
+    "bytes": 27297,
+    "sha256": "b43d0bf497b885821d2650aaacf34af36b9058ebb220543ac5b2dfe4ae6c2465"
+  },
+  {
+    "path": "backend/config.py",
+    "bytes": 670,
+    "sha256": "bfc843f36120450fc035273e1a6ae0fe0086adba0cf2dd11c0524920e379bb63"
+  },
+  {
+    "path": "backend/job_runner.py",
+    "bytes": 584,
+    "sha256": "ed3adc47d7c2f5398f7813c7534936b7e41cdd7c98987fc200067f6650093e6b"
+  },
+  {
+    "path": "backend/local_comparison_camera.py",
+    "bytes": 1264,
+    "sha256": "b075ef197f2100fdbf069c6ee061b6b557f37bb56af3e96b2ff7fa637bea4899"
+  },
+  {
+    "path": "backend/reconstruction/__init__.py",
+    "bytes": 467,
+    "sha256": "f76f2e6762ab36211ed929ab1ab72ec9a1b6031ca66b66891a2deda4b39ffd87"
+  },
+  {
+    "path": "backend/reconstruction/base_engine.py",
+    "bytes": 2800,
+    "sha256": "639a864f9fde279828008f774828665b1ec79835253edba47a6d456eb4ac68ae"
+  },
+  {
+    "path": "backend/reconstruction/capture_intake.py",
+    "bytes": 6437,
+    "sha256": "00146b53e5e1327dc6ded422cd5f52a071d1ebb8cba272e731a21fb67df8351c"
+  },
+  {
+    "path": "backend/reconstruction/capture_support.py",
+    "bytes": 2345,
+    "sha256": "b95f378dc19fe1f1c1cad38c9cb3eb09874f425d6930e6a55721279c5be39279"
+  },
+  {
+    "path": "backend/reconstruction/engine_registry.py",
+    "bytes": 873,
+    "sha256": "0df00005219d064adb483e74731984e95d5adfda80f50a801b620d2b5070809c"
+  },
+  {
+    "path": "backend/reconstruction/gaussian_geometry.py",
+    "bytes": 5527,
+    "sha256": "50c03533a5d5e099cd35fe493b98c115a84bcf4c4ec771db793ad955ed41698f"
+  },
+  {
+    "path": "backend/reconstruction/navigation_geometry.py",
+    "bytes": 6068,
+    "sha256": "f3562fe4a2242718143747c741196c6822323f516d8a94bc324d4f80489975d0"
+  },
+  {
+    "path": "backend/reconstruction/process_lock.py",
+    "bytes": 1424,
+    "sha256": "ff0cbf672ce0795e7773255e31c87264d3979d36a511ab4851665701868dcfb1"
+  },
+  {
+    "path": "backend/reconstruction/resplat_camera_remote.py",
+    "bytes": 4734,
+    "sha256": "5b4fe9af25fb8752ffb11b72bfa8c8e6f588619ce191dcb5ee8c523287e987d1"
+  },
+  {
+    "path": "backend/reconstruction/resplat_cleanup.py",
+    "bytes": 1788,
+    "sha256": "260d0825b5c8228c09826d87a07c40132d69d16e9f7f41579651b0966fd08dfc"
+  },
+  {
+    "path": "backend/reconstruction/resplat_contract.py",
+    "bytes": 1314,
+    "sha256": "95bcb0e0840cfba6d1604b01afcc45573ca1977cd09a5b76ccea98844488b181"
+  },
+  {
+    "path": "backend/reconstruction/resplat_engine.py",
+    "bytes": 21993,
+    "sha256": "481d7222aa1373864eebaae28732dbeaa87b59690156e2a2337d13e132e62d9d"
+  },
+  {
+    "path": "backend/reconstruction/resplat_export.py",
+    "bytes": 2225,
+    "sha256": "e2a22e0200cf01807d1fa85f5cae7ecc792af997625599c45043c37d71949453"
+  },
+  {
+    "path": "backend/reconstruction/resplat_policy.py",
+    "bytes": 980,
+    "sha256": "11f00ee26bede48d01527a9aea09495777e652bb9c038e5a1cabf10818f8a5ee"
+  },
+  {
+    "path": "backend/reconstruction/resplat_remote.py",
+    "bytes": 18040,
+    "sha256": "ec621850a178303c9db010bc436a9c2c8fce434bac22fd2139ea3ce76c014326"
+  },
+  {
+    "path": "backend/reconstruction/resplat_support.py",
+    "bytes": 4311,
+    "sha256": "de3a7cd0031dd5f7ddd2b99eff511cb12e6fd4683f02d2c5f1c055c5a351af7c"
+  },
+  {
+    "path": "backend/reconstruction/resplat_transport.py",
+    "bytes": 2625,
+    "sha256": "7a32b99719e70a45709915fdbd8a06dba096804168f74fc182eac3431ee43c8b"
+  },
+  {
+    "path": "backend/reconstruction/resplat_video.py",
+    "bytes": 11950,
+    "sha256": "e413ba07c683a23a8027044e0bc081ceea1b8ef1534f0660b6986f920353dbc8"
+  },
+  {
+    "path": "backend/reconstruction/run_timing.py",
+    "bytes": 2958,
+    "sha256": "c5a6e34352cddbf3f5f64d85574bfb06a5432f97b82e992b7e2c463f700b9182"
+  },
+  {
+    "path": "backend/reconstruction/scene_leveling.py",
+    "bytes": 4434,
+    "sha256": "cf567564a0b63258b40a9e95e2f7fda201f749b043173076edeaa0590b38e684"
+  },
+  {
+    "path": "backend/reconstruction/splat_transform_cleanup.py",
+    "bytes": 11605,
+    "sha256": "c223be33fd1d0d3fbb1625b4d048257fdb0a8fe4557a333b0f9ede4e33a2a1e2"
+  },
+  {
+    "path": "backend/reconstruction/stage_activity.py",
+    "bytes": 4976,
+    "sha256": "f45a7eb3b1c606f064e1cb9a43b052dd85019a698b0ed92325f4bf49fc7ca2a0"
+  },
+  {
+    "path": "backend/reconstruction/video_camera_recovery.py",
+    "bytes": 8441,
+    "sha256": "0471fd14d60ecb0efb0ca147027a2a01b28f03a1692ae35393fff8e7bd561c27"
+  },
+  {
+    "path": "backend/reconstruction/viewer_assets.py",
+    "bytes": 202,
+    "sha256": "879f2d74881a9ce5f1855e13fcc1d012f2ae734817152684c587e9d7a0676e53"
+  },
+  {
+    "path": "backend/requirements.txt",
+    "bytes": 119,
+    "sha256": "928062ce33c3419319fc8f65d93544097163d4edbd4cd59188a8102e94cb5b6f"
+  },
+  {
+    "path": "backend/serve_splat_review.py",
+    "bytes": 982,
+    "sha256": "fa8ecea5921b3ecd456cd8525246b04046126327bffefa57e6ee9ad21dd766a4"
+  },
+  {
+    "path": "backend/test_capture_intake.py",
+    "bytes": 5999,
+    "sha256": "5d51b50e067d42bf934f23b0e9ee416ccf2ca9cc57cffbb668a7e082b8b8c39d"
+  },
+  {
+    "path": "backend/test_capture_support.py",
+    "bytes": 2050,
+    "sha256": "bfbf2bf7dbf3b035e0fb8f09d0559d6b81657ce5991cb28c0b3050172ace6c88"
+  },
+  {
+    "path": "backend/test_colmap_compat.py",
+    "bytes": 1685,
+    "sha256": "246133456aa676e6dadfc856448c35122f214e9740aef0bf7821ec933e8ef8c2"
+  },
+  {
+    "path": "backend/test_colmap_recovery.py",
+    "bytes": 4946,
+    "sha256": "fd671b16c566d0da36769c723d39e2702b5027eb931c17cdc947193c31405b82"
+  },
+  {
+    "path": "backend/test_resplat_camera_remote.py",
+    "bytes": 1632,
+    "sha256": "290f600ab37f7b4aa486cbc8fd481659919e7fefae87c7e71cc5858deb051562"
+  },
+  {
+    "path": "backend/test_resplat_cleanup.py",
+    "bytes": 1996,
+    "sha256": "4f24fc3761b6cd23ca9a8f18ef78533720552dc68d82c4d057d159d1d40c7d73"
+  },
+  {
+    "path": "backend/test_resplat_contract.py",
+    "bytes": 1898,
+    "sha256": "44523c12db66bbde6238afc4e5807bf23dac3682e3f7637ebd251d214cd404bf"
+  },
+  {
+    "path": "backend/test_resplat_engine.py",
+    "bytes": 12487,
+    "sha256": "cd1c261745d2686bb167b27ebd496bdc2df714a18e75024a22156d69bb9e0b89"
+  },
+  {
+    "path": "backend/test_resplat_export.py",
+    "bytes": 2550,
+    "sha256": "b6835ff1568670415b2bf655b1936edeb879ccf324d40b2dfb8fe245d2e3832b"
+  },
+  {
+    "path": "backend/test_resplat_policy.py",
+    "bytes": 2525,
+    "sha256": "89a5132d8598d50fa77dad3d19c4dd822fc0f272d47ea3004c20314a41cc5fa2"
+  },
+  {
+    "path": "backend/test_resplat_remote.py",
+    "bytes": 11925,
+    "sha256": "f4f8029e9fdc81b9c74fe23191da19fdc9f05a10ef10cb444818990809dfb9aa"
+  },
+  {
+    "path": "backend/test_resplat_support.py",
+    "bytes": 2576,
+    "sha256": "96a1cca795c1a6633ed50f98b747027ca8c27f2df1ae3dc35ee8a6b1f9c97cab"
+  },
+  {
+    "path": "backend/test_resplat_video.py",
+    "bytes": 2792,
+    "sha256": "693dd14ac0e764351472cf485108ce76ded1c1372c38fe71b5a8bc79f9c07dda"
+  },
+  {
+    "path": "backend/test_scene_leveling.py",
+    "bytes": 3559,
+    "sha256": "3fe6a6578dfa80839c5a99dad84177a57e3fe42205f5fa7fd650bcf66c449847"
+  },
+  {
+    "path": "backend/test_video_coverage_recovery.py",
+    "bytes": 2175,
+    "sha256": "a69df3e86a0e3904ed98110e6f18913e581c9bf6662da4d42cebbe153f93bb6b"
+  },
+  {
+    "path": "docs/RUNTIME.md",
+    "bytes": 1080,
+    "sha256": "7318a09d4c3dc0f9ef14e658cb62b14afd8138ab85a77ff864c71083ecdea7e6"
+  },
+  {
+    "path": "frontend/index.html",
+    "bytes": 886,
+    "sha256": "6b1e76fe4626f69c778ea41063d4343d66611b8b52814c29228049f364af0a2c"
+  },
+  {
+    "path": "frontend/package-lock.json",
+    "bytes": 135143,
+    "sha256": "c77103c9cbf08d4efb998e289eddb045796f63a42c8b63d2619e1b4cbf1a9dd1"
+  },
+  {
+    "path": "frontend/package.json",
+    "bytes": 1027,
+    "sha256": "b73e177dd262b3cf5db85eb2a528910ad40ee8eed7d554b204a11eae58940e45"
+  },
+  {
+    "path": "frontend/postcss.config.js",
+    "bytes": 80,
+    "sha256": "190c877db466995bf1482f4a16abd06e04a89ede3119341e2a86ff96e1737b27"
+  },
+  {
+    "path": "frontend/public/blueprint-mobile-plan.svg",
+    "bytes": 541,
+    "sha256": "b527f5d170b4cd4d0dd9001b05adf495d9bbe6f5def92bb595185025088b162b"
+  },
+  {
+    "path": "frontend/public/one-beyond-logo.png",
+    "bytes": 401413,
+    "sha256": "e77f1eef7d751c98cb576d22f9068fae2c43cc22db641594fa3e42ed46372dd7"
+  },
+  {
+    "path": "frontend/server.mjs",
+    "bytes": 5608,
+    "sha256": "43027de171d352a7ceb2404bd7f734d0c0be1bcfb704238a22f06329ffbcba80"
+  },
+  {
+    "path": "frontend/server.test.mjs",
+    "bytes": 1050,
+    "sha256": "57a0073547757b9f258cba38e74d2450df85d1e650a87d3a83cfd9ef6c73e8a6"
+  },
+  {
+    "path": "frontend/src/App.tsx",
+    "bytes": 12923,
+    "sha256": "0536496cc2f9ce56e31fae71a0f5d38bedd3f79c5fa57ec49e30afcbdfe2ba08"
+  },
+  {
+    "path": "frontend/src/components/LandingHero.tsx",
+    "bytes": 11089,
+    "sha256": "8a31fae695e81c091378995995e2c8e43552e001254ed516445c63e41be9322a"
+  },
+  {
+    "path": "frontend/src/components/LivingBlueprint.tsx",
+    "bytes": 22092,
+    "sha256": "f607da7279f27cd5595cd5df140d3c7a77d7f843c997b806730656eb65be1546"
+  },
+  {
+    "path": "frontend/src/components/Navbar.tsx",
+    "bytes": 4949,
+    "sha256": "8d97ed3978d70ea1ed4c03a65661ffb49dee7d587e836da24a78e51da37e8d47"
+  },
+  {
+    "path": "frontend/src/components/PortalStory.tsx",
+    "bytes": 7641,
+    "sha256": "68969c8bd0bcf91ab82f83170aa75a3b7205ee2219ed14aa561113234ad52262"
+  },
+  {
+    "path": "frontend/src/components/ProcessingView.tsx",
+    "bytes": 15744,
+    "sha256": "ceb5d822119b027ff3735738391c937c796e7e189be7984f3e84df21a09ff0e2"
+  },
+  {
+    "path": "frontend/src/components/SavedSpaceReview.tsx",
+    "bytes": 639,
+    "sha256": "ce15ce4e54fdcca69742cbb9bb8530a0c69abff64ea963184a83e43258e71899"
+  },
+  {
+    "path": "frontend/src/components/SitePages.test.tsx",
+    "bytes": 2580,
+    "sha256": "a020cd649858be846c0f236790bbca424b927050cfbb6be260bf6c3a73539011"
+  },
+  {
+    "path": "frontend/src/components/SitePages.tsx",
+    "bytes": 15136,
+    "sha256": "f6f09ace81cbf040aa0bb7a70a5ad31d960bac3b3551721360d9f10efceb8147"
+  },
+  {
+    "path": "frontend/src/components/UploadModal.tsx",
+    "bytes": 5578,
+    "sha256": "ea1694faf8f5d974f36493b59b61e5a2edb06ef0322e775cc18ca6ba5da0a7ee"
+  },
+  {
+    "path": "frontend/src/components/viewer/GaussianViewer.tsx",
+    "bytes": 3482,
+    "sha256": "eb0e8dacff4739efd7e8b3a65c458985f2cccb9a0417ef4072c011e60d55f065"
+  },
+  {
+    "path": "frontend/src/components/viewer/inferredWall.test.ts",
+    "bytes": 929,
+    "sha256": "a32aee5c7a1abc11b26a03305e4b9c1e207590b1e063b615a5b06d7ab5d8c5c4"
+  },
+  {
+    "path": "frontend/src/components/viewer/navigation.test.js",
+    "bytes": 4562,
+    "sha256": "e3c57e8d9ec1412ccc9ef0f938e981815a41cb804e459c4a90975e882e5d2e07"
+  },
+  {
+    "path": "frontend/src/components/viewer/RoomViewer.tsx",
+    "bytes": 811,
+    "sha256": "517a7d893904f30a891ac14fb3272eff4db33c8e35d6499d9793f98c1f4a4349"
+  },
+  {
+    "path": "frontend/src/components/viewer/surfaceConfidence.test.js",
+    "bytes": 1230,
+    "sha256": "8d169751b27db26829dee098679b15337061a0e168c4f7d8bf9b235b6499ba9d"
+  },
+  {
+    "path": "frontend/src/components/viewer/ViewerErrorBoundary.test.tsx",
+    "bytes": 680,
+    "sha256": "ac0670b01d2e5b9de469143c0333c4a490fa89f5b13ef1a96085d6f4db5568b1"
+  },
+  {
+    "path": "frontend/src/components/viewer/ViewerErrorBoundary.tsx",
+    "bytes": 779,
+    "sha256": "3e838ef248a19cd3df4fb3556bd4eaab2e904ba617fc43cb65aab9661c1baf08"
+  },
+  {
+    "path": "frontend/src/index.css",
+    "bytes": 1909,
+    "sha256": "55be18e7500f12f534e80f35af62538af60f5ffaed8ab05270da34cb0ff6d34a"
+  },
+  {
+    "path": "frontend/src/main.tsx",
+    "bytes": 320,
+    "sha256": "c7daffdc4a140ae2235bb00850111165bdf53f076d60379311b9c1221149a46b"
+  },
+  {
+    "path": "frontend/src/services/api.test.ts",
+    "bytes": 4640,
+    "sha256": "c4d88b05d1c7295b4a5bfc3db69ffc7a450215fc03bf9f94c64587dc9c0cb620"
+  },
+  {
+    "path": "frontend/src/services/api.ts",
+    "bytes": 5733,
+    "sha256": "6200601a5af2e690b34024ab1076658d82df1dbef3067651164095a9a8a15c74"
+  },
+  {
+    "path": "frontend/src/services/reconstructionSession.test.ts",
+    "bytes": 1499,
+    "sha256": "90b815bebbd6381ce631e2a3921d5cdd34ed925562d0e2d0a982a2dd9956c787"
+  },
+  {
+    "path": "frontend/src/services/reconstructionSession.ts",
+    "bytes": 908,
+    "sha256": "1bf3e93450d5f178dc451ae2696bb553c238da90491bd623620c75eb9ebf6766"
+  },
+  {
+    "path": "frontend/src/services/runtimeCheck.test.ts",
+    "bytes": 802,
+    "sha256": "02c08617cd2341f67dc418c77ddde0f2d0a151ed0ea0ede516ccdb047003655f"
+  },
+  {
+    "path": "frontend/src/services/runtimeCheck.ts",
+    "bytes": 608,
+    "sha256": "be7fab9195e10a4f99a4d9965f8cf033d31ce12ba79621014b60837f4418bddf"
+  },
+  {
+    "path": "frontend/src/services/savedSpaces.test.ts",
+    "bytes": 3686,
+    "sha256": "bb7a4bb9be77017b1e4f6d0dfb7e97f5c9869c7571ea4525136ed96baa1cf3e3"
+  },
+  {
+    "path": "frontend/src/services/savedSpaces.ts",
+    "bytes": 2050,
+    "sha256": "97116fe91d0ea68bef3845921197a34e03c9db793ae51b275cd6f897bb851f6b"
+  },
+  {
+    "path": "frontend/src/siteRoutes.ts",
+    "bytes": 838,
+    "sha256": "bcf61fff05077e9848a5450ef1d386772c392e57e1d88e7c28be09ed2a50db74"
+  },
+  {
+    "path": "frontend/src/styles/fonts.css",
+    "bytes": 131,
+    "sha256": "260cb1a13c4532762d6c191657f88174fec2fa5688bc5bff01ad51390eb12675"
+  },
+  {
+    "path": "frontend/src/styles/theme.css",
+    "bytes": 48062,
+    "sha256": "c70a24a7dedd13d84855cec968b20cb3fdc9aa15a4252070bc6488dd91f93ed6"
+  },
+  {
+    "path": "frontend/src/types/index.ts",
+    "bytes": 3914,
+    "sha256": "c9a5c1b5348a67dc8156bc619fa2a6e32d48d3e7453f631278a8dab90f4e729b"
+  },
+  {
+    "path": "frontend/start.mjs",
+    "bytes": 200,
+    "sha256": "cf243639fb240b48bba4dd53d680522e10cb8f3fc199bf6fe24d231c05a4b8e3"
+  },
+  {
+    "path": "frontend/tailwind.config.js",
+    "bytes": 1186,
+    "sha256": "9318afa48e90d98513870601829bad06bb68a1d0e8fc8bd89090599588215c0c"
+  },
+  {
+    "path": "frontend/tsconfig.json",
+    "bytes": 511,
+    "sha256": "aba9f74f69078d70698da5307a9c4551db26fff2bf60502a225baf0dee19930d"
+  },
+  {
+    "path": "frontend/VISUAL_REGRESSION.md",
+    "bytes": 1917,
+    "sha256": "bdfeca8ba2b69dd7861dcf390602250577dd621fa578ae925036f588d68bd0ac"
+  },
+  {
+    "path": "frontend/vite.config.ts",
+    "bytes": 323,
+    "sha256": "10811a076428598c5069a7135742185859ca82fca43f4732625383af7937d98d"
+  },
+  {
+    "path": "README.md",
+    "bytes": 4204,
+    "sha256": "0a060de396252d2b0be6cd72a3a619dc8a0a9cb5dbce8be8dea9d9e8c1270641"
+  },
+  {
+    "path": "requirements.txt",
+    "bytes": 28,
+    "sha256": "fb3ff435be42091b88998f5a053afb217a17d41b96c041f0c6ab6389d1dc68f8"
+  },
+  {
+    "path": "scripts/prepare-resplat.py",
+    "bytes": 2889,
+    "sha256": "f5a756bbafb1825d6d2cdae7f6765105a4e21c64679db41d88ad33e301b57d53"
+  },
+  {
+    "path": "scripts/resplat-camera-job.py",
+    "bytes": 9521,
+    "sha256": "3cd1747adbc3af6b23bedc519e985c9b79f63760f6387e9ed36c0d1023a5f726"
+  },
+  {
+    "path": "scripts/resplat-infer-job.py",
+    "bytes": 6227,
+    "sha256": "a583a117f4adb5b0ecd253f0ddb3c85ca239aab4f52e16c610cb65aaace621d4"
+  },
+  {
+    "path": "scripts/resplat-low-memory.py",
+    "bytes": 5082,
+    "sha256": "0412dccec3a55f7686151465a53bccd48ed2c5eef988c8b16cefe502bb54333b"
+  },
+  {
+    "path": "scripts/resplat_context_selection.py",
+    "bytes": 2628,
+    "sha256": "58174135a11ad0fbf13680623818257f6591663558019969af08b00bbe4e3bb6"
+  },
+  {
+    "path": "scripts/splat-native-float.js",
+    "bytes": 10678,
+    "sha256": "208557c723c17f34919462116ce536ac0cc695a4a73eb9a4c676e18c3c0d1693"
+  },
+  {
+    "path": "scripts/splat-navigation.js",
+    "bytes": 4707,
+    "sha256": "f41c3272ec60e2534c80e0b8856c231a637972bc650c7fc0c9b3a58df8f2e85b"
+  },
+  {
+    "path": "scripts/splat-review.html",
+    "bytes": 31810,
+    "sha256": "f9c958b28c5ec24b078571752683205e98a3ec53f2a22bde7864eeb71e97f2ae"
+  },
+  {
+    "path": "scripts/splat-solid.js",
+    "bytes": 8854,
+    "sha256": "94497e118c23d5a13260fe501abc7871c72893eae6d07c9640b3d82232c0224c"
+  },
+  {
+    "path": "scripts/splat-surface-confidence.js",
+    "bytes": 933,
+    "sha256": "e8262222a6d4fa2d5b759e4dae8b4fb7dd1540ceb1b319d0855e393ddab341bd"
+  },
+  {
+    "path": "THIRD_PARTY_NOTICES.md",
+    "bytes": 1376,
+    "sha256": "bd31a124d6b89aac607249807d0ececd6724ea3429090ff346163a432fb1d08e"
+  },
+  {
+    "path": "VALIDATION.md",
+    "bytes": 1026,
+    "sha256": "54afc0b56494c6c35cdffaf26e1d047e7f7bdd640ffa1b5172cb063ea7f3c440"
+  }
+]

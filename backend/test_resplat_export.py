@@ -1,10 +1,24 @@
 import unittest
+from unittest.mock import patch
 import numpy as np
 from scipy.spatial.transform import Rotation
-from reconstruction.resplat_export import world_rotations
+from reconstruction.resplat_export import world_rotations,repair_export
 
 
 class ExportTests(unittest.TestCase):
+    def test_video_export_uses_context_cameras_instead_of_all_registered_views(self):
+        values=np.zeros(16,dtype=[('rot_'+str(i),'f4') for i in range(4)])
+        values['rot_0']=1
+        cameras=[dict(name=f'{i:05d}.jpg',rotation=np.eye(3).tolist()) for i in range(26)]
+        names=[cameras[i]['name'] for i in [1,3,5,8,12,17,22,25]]
+        config=dict(cameras=cameras,reconstruction_context_names=names)
+        with patch('reconstruction.gaussian_geometry.read_ply',return_value=('header',values)), \
+             patch('reconstruction.gaussian_geometry.write_ply') as write:
+            report=repair_export('raw.ply','scene.ply',config)
+        self.assertEqual(report['views'],8)
+        self.assertEqual(len(config['cameras']),26)
+        self.assertEqual(len(write.call_args.args[2]),16)
+
     def test_covariance_matches_world_renderer_and_other_fields_unchanged(self):
         dtype=[(key,'f4') for key in ['x','y','z','opacity','scale_0','scale_1','scale_2','f_dc_0','rot_0','rot_1','rot_2','rot_3']]
         values=np.zeros(12,dtype=dtype)

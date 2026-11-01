@@ -147,24 +147,24 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenUpload, onExplor
         <div className="subpage-container home-proof-grid">
           <div className="home-proof-copy" data-scroll-reveal>
             <p className="section-kicker">01 / THE VIEWER</p>
-            <h2 id="proof-title" className="font-display">The real test is <em>what you can inspect.</em></h2>
-            <p>A room is more useful when you can move through it, question its scale, and look beyond the camera angle. Try the sample viewer before bringing your own space.</p>
+            <h2 id="proof-title" className="font-display">Explore the room <em>from a new perspective.</em></h2>
+            <p>Move through the sample room and explore it from different angles before creating your own space.</p>
             <button type="button" onClick={onExploreSample} className="aethera-button primary-button rounded-full px-7 py-3.5 text-sm font-medium">Enter Sample Viewer <ArrowRight size={16} aria-hidden="true" /></button>
           </div>
           <figure className="home-proof-visual" data-scroll-reveal>
             <img src="/sample-interior-illustrative.png" alt="Illustrative interior scene representing a room to explore" loading="lazy" decoding="async" />
-            <figcaption>ILLUSTRATIVE EDITORIAL IMAGE — OPEN THE VIEWER FOR THE ACTUAL SAMPLE</figcaption>
+            <figcaption>Illustrative image. Open the viewer to explore the sample.</figcaption>
           </figure>
         </div>
       </section>
 
       <section className="home-evidence" aria-labelledby="evidence-title">
         <div className="subpage-container">
-          <p className="section-kicker" data-scroll-reveal>02 / HONEST RECONSTRUCTION</p>
-          <h2 id="evidence-title" className="font-display" data-scroll-reveal>See the space. <em>Know the limits.</em></h2>
+          <p className="section-kicker" data-scroll-reveal>02 / UNDERSTANDING YOUR RECONSTRUCTION</p>
+          <h2 id="evidence-title" className="font-display" data-scroll-reveal>Explore with <em>a clear perspective.</em></h2>
           <div className="home-evidence-grid">
             <article data-scroll-reveal><span>01 / VISIBLE</span><h3>Start with evidence.</h3><p>Photographs give the room its visible surfaces, objects and relationships.</p></article>
-            <article data-scroll-reveal><span>02 / ESTIMATED</span><h3>Keep scale honest.</h3><p>Without a measured width, dimensions remain estimates—not a survey.</p></article>
+            <article data-scroll-reveal><span>02 / ESTIMATED</span><h3>Understand the scale.</h3><p>Dimensions are approximate and should not be used as verified measurements.</p></article>
             <article data-scroll-reveal><span>03 / EXPLORE</span><h3>Inspect the result.</h3><p>The viewer lets you revisit the scene from perspectives the photos cannot show.</p></article>
           </div>
         </div>
@@ -175,7 +175,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenUpload, onExplor
         <div className="subpage-container home-discovery-inner">
           <p className="section-kicker" data-scroll-reveal>03 / YOUR SPACE</p>
           <h2 id="discovery-title" className="font-display" data-scroll-reveal>Bring a place <em>into focus.</em></h2>
-          <p data-scroll-reveal>Have overlapping photographs of a real indoor space? Open the studio to understand the capture requirements, or create a space now.</p>
+          <p data-scroll-reveal>Have room photos or a walkthrough video? Visit the Studio for capture guidance, or start creating your space.</p>
           <div className="home-discovery-actions" data-scroll-reveal>
             <button type="button" onClick={onOpenUpload} className="aethera-button contact-button rounded-full px-7 py-3.5 text-sm font-medium">Create 3D Space <ArrowRight aria-hidden="true" size={16} /></button>
             <button type="button" onClick={() => navigateSite('studio')} className="aethera-text-button rounded-full px-5 py-3.5 text-sm font-medium">Open Studio <ArrowRight aria-hidden="true" size={16} /></button>
@@ -185,8 +185,8 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenUpload, onExplor
       </> : <SitePages route={route} onOpenUpload={onOpenUpload} onExploreSample={onExploreSample} onSelectSpace={onSelectSpace} recentSpaces={recentSpaces} spacesStatus={spacesStatus} spacesError={spacesError} onRetrySpaces={onRetrySpaces} />}
       <footer className="site-footer">
         <div className="subpage-container site-footer-grid">
-          <div><p className="site-footer-brand font-display">One Beyond</p><p>Real spaces. More ways to see them.</p><small>Independently built by Vihaan Vakharia.</small></div>
-          <nav aria-label="Footer navigation"><FooterLink route="studio">Studio</FooterLink><FooterLink route="sample">Sample Space</FooterLink><FooterLink route="recent">Your Spaces</FooterLink><FooterLink route="about">About</FooterLink><FooterLink route="contact">Contact</FooterLink></nav>
+          <div><p className="site-footer-brand font-display">One Beyond</p><p>Real spaces. More ways to see them.</p><small>I built One Beyond independently. — Vihaan Vakharia</small></div>
+          <nav aria-label="Footer navigation"><FooterLink route="studio">Studio</FooterLink><FooterLink route="sample">Sample Space</FooterLink><FooterLink route="recent">Your Spaces</FooterLink><FooterLink route="about">About</FooterLink></nav>
         </div>
       </footer>
     </main>

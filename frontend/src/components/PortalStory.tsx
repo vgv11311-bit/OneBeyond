@@ -131,7 +131,7 @@ export const PortalStory: React.FC = () => {
           <div ref={node => { copyRefs.current[0] = node; }} className="portal-copy-panel">
             <p className="portal-eyebrow">A NEW PERSPECTIVE</p>
             <h2>Every space starts <em>somewhere.</em></h2>
-            <p>A photograph holds a place in a single frame. We look beyond that frame.</p>
+            <p>A photograph holds a place in a single frame. I built One Beyond to help you look beyond that frame.</p>
           </div>
           <div ref={node => { copyRefs.current[1] = node; }} className="portal-copy-panel portal-copy-hidden">
             <p className="portal-eyebrow">FROM IMAGE TO GEOMETRY</p>

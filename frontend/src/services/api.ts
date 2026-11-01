@@ -1,6 +1,20 @@
 import { SpaceJob, ReconstructionEngine } from '../types';
 
 const API_BASE = '/api';
+let reconnectRequest: Promise<void>|null=null;
+
+async function boundedJson(url:string,options:RequestInit,timeout:number,message:string){
+  const controller=new AbortController();
+  let timer:ReturnType<typeof setTimeout>;
+  const deadline=new Promise<never>((_,reject)=>{
+    timer=setTimeout(()=>{controller.abort();reject(new Error(message));},timeout);
+  });
+  try {
+    return await Promise.race([
+      fetch(url,{...options,signal:controller.signal}).then(async response=>({response,data:await response.json()})),deadline,
+    ]);
+  } finally {clearTimeout(timer!);}
+}
 
 export function parseSpacesResponse(data: unknown): SpaceJob[] {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Saved spaces response was malformed.');
@@ -20,6 +34,15 @@ export function parseSpacesResponse(data: unknown): SpaceJob[] {
 }
 
 export const api = {
+  async reconnectResplat(): Promise<void> {
+    if(!reconnectRequest)reconnectRequest=(async()=>{
+      const {response,data}=await boundedJson(`${API_BASE}/reconstruction/resplat/connect`,{method:'POST',cache:'no-store'},45000,
+        'GPU connection check timed out. The check has stopped; please reconnect again.');
+      if(!response.ok||data?.can_run!==true)throw new Error(data?.availability_message||'Could not reconnect the running GPU.');
+    })().finally(()=>{reconnectRequest=null;});
+    return reconnectRequest;
+  },
+
   async getHealth(): Promise<{ status: string; engines: ReconstructionEngine[] }> {
     const res = await fetch(`${API_BASE}/health`);
     if (!res.ok) throw new Error('Failed to fetch API health');
@@ -27,10 +50,10 @@ export const api = {
   },
 
   async getEngines(): Promise<ReconstructionEngine[]> {
-    const res = await fetch(`${API_BASE}/engines`);
-    if (!res.ok) throw new Error('Failed to fetch engines');
-    const data = await res.json();
-    return data.engines || [];
+    const {response,data}=await boundedJson(`${API_BASE}/engines`,{cache:'no-store'},5000,'Runtime status refresh timed out. Please retry.');
+    if(!response.ok)throw new Error('Failed to fetch engines');
+    if(!data||!Array.isArray(data.engines))throw new Error('Runtime status response was malformed.');
+    return data.engines;
   },
 
   async uploadMedia(files: File[], spaceName?: string): Promise<{ job_id: string; input_type: 'photos' | 'video'; capture_warnings: string[] }> {
@@ -55,7 +78,7 @@ export const api = {
     return res.json();
   },
 
-  async startReconstruction(jobId: string, engineId: string = 'gemini_scene', options: Record<string, unknown> = {}, attemptId?: string): Promise<void> {
+  async startReconstruction(jobId: string, engineId: string = 'resplat_experimental', options: Record<string, unknown> = {}, attemptId?: string): Promise<void> {
     const res = await fetch(`${API_BASE}/reconstruct`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,15 +100,12 @@ export const api = {
   },
 
   async getJobStatus(jobId: string): Promise<SpaceJob> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-    try {
-      const res = await fetch(`${API_BASE}/reconstruct/status/${jobId}`, { signal: controller.signal });
-      if (!res.ok) throw new Error(`Failed to fetch job ${jobId} status`);
-      return await res.json();
-    } finally {
-      clearTimeout(timer);
-    }
+    const {response,data}=await boundedJson(`${API_BASE}/reconstruct/status/${jobId}`,{cache:'no-store'},8000,
+      'Job status timed out. Retrying the connection; your last confirmed progress is retained.');
+    if(!response.ok)throw new Error(`Failed to fetch job ${jobId} status`);
+    if(!data||data.job_id!==jobId||!['uploaded','processing','completed','review_required','failed','cancelled'].includes(data.status))
+      throw new Error('Job status response was malformed; last confirmed progress is retained.');
+    return data;
   },
 
   async listSpaces(): Promise<SpaceJob[]> {

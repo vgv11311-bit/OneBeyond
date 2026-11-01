@@ -1,12 +1,25 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111b25">
 <title>Photographic reconstruction</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,system-ui,sans-serif;color:#f4f7fa;background:#171b20}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}header,.walk-hint{position:fixed;z-index:2;background:rgba(12,19,27,.85);border:1px solid #ffffff1a;backdrop-filter:blur(16px);box-shadow:0 12px 36px #0003}header{top:16px;left:16px;padding:16px;border-radius:16px;max-width:min(340px,calc(100vw - 32px))}.eyebrow{font:600 10px ui-monospace,monospace;letter-spacing:.16em;color:#67e8f9;text-transform:uppercase}.eyebrow:before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#67e8f9;margin-right:8px}h1{font-size:14px;font-weight:600;margin:8px 0 12px}select,button{font-family:inherit;font-size:12px;font-weight:500;color:#dce5ef;border:1px solid #ffffff20;background:#ffffff08;border-radius:20px;min-height:36px;padding:8px 12px}select{max-width:145px}option{background:#111b25}button{cursor:pointer;transition:background-color 140ms ease,transform 120ms ease}button:active{transform:scale(.97)}button:hover{background:#ffffff18}button:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid #67e8f9;outline-offset:3px}button[aria-pressed=true]{color:#a5f3fc;border-color:#22d3ee66;background:#22d3ee1a}.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}details{margin-top:10px;color:#9eafbf;font-size:11px;line-height:1.5}summary{cursor:pointer}p{margin:7px 0 0}.walk-hint{left:50%;bottom:20px;transform:translateX(-50%);border-radius:24px;padding:8px 14px;display:flex;align-items:center;gap:12px;font-size:11px;white-space:nowrap;color:#bccbd8}kbd{font:10px ui-monospace,monospace;background:#ffffff12;padding:3px 5px;border-radius:4px}.walk-hint button{min-height:30px;padding:5px 10px}@media(max-width:700px){header{top:72px;padding:12px;max-width:270px}.walk-hint{bottom:12px;max-width:calc(100vw - 24px);white-space:normal}.optional{display:none}}@media(prefers-reduced-motion:reduce){button{transition:none}}
 </style>
+<style>
+html,body{overscroll-behavior:none;height:100dvh}button,select{touch-action:manipulation;-webkit-tap-highlight-color:transparent}button{user-select:none;-webkit-user-select:none}
+header{top:calc(16px + env(safe-area-inset-top));left:calc(16px + env(safe-area-inset-left))}header details{max-height:32dvh;overflow:auto;overscroll-behavior:contain}
+#touch-controls{display:none;pointer-events:none;position:fixed;inset:0;z-index:3}#touch-controls[data-open=true]{display:block}
+.move-pad,.height-pad{pointer-events:auto;position:absolute;bottom:calc(22px + env(safe-area-inset-bottom));padding:10px;border-radius:24px;background:rgba(12,19,27,.88);border:1px solid #ffffff25;box-shadow:0 8px 24px #0004;touch-action:none}
+.move-pad{left:calc(16px + env(safe-area-inset-left));display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:5px}.height-pad{right:calc(16px + env(safe-area-inset-right));display:grid;gap:6px}
+.move-pad button,.height-pad button{min-width:48px;min-height:48px;border-radius:15px;font-size:20px;touch-action:none}.height-pad button{font-size:13px;min-width:64px}.move-pad [data-code=KeyW]{grid-column:2}.move-pad [data-code=KeyA]{grid-column:1;grid-row:2}.move-pad [data-code=KeyS]{grid-column:2;grid-row:2}.move-pad [data-code=KeyD]{grid-column:3;grid-row:2}
+[data-code][data-held=true]{background:#155e75;border-color:#67e8f9;color:white;transform:scale(.96)}.touch-caption{position:absolute;bottom:calc(155px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-size:11px;background:#0c131bdd;border-radius:20px;padding:8px 12px;white-space:nowrap;color:#bccbd8}
+@media(hover:hover) and (pointer:fine){button:hover{background:#ffffff18}}
+@media(any-pointer:coarse){header{top:calc(70px + env(safe-area-inset-top));padding:12px;max-width:min(300px,calc(100vw - 32px));max-height:calc(100dvh - 270px);overflow:auto;overscroll-behavior:contain}header h1{margin:6px 0 10px}.eyebrow{font-size:9px}select,input{font-size:16px}#lock{display:none}.walk-hint{display:none}button{min-height:44px}button:hover{background:#ffffff08}#touch-controls:not([data-open=false]){display:block}}
+@media(max-height:480px) and (any-pointer:coarse){header{top:calc(60px + env(safe-area-inset-top));padding:8px}header .eyebrow,header h1{display:none}header details{max-height:20dvh}.move-pad,.height-pad{bottom:calc(10px + env(safe-area-inset-bottom));padding:7px}.touch-caption{display:none}}
+</style>
 <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/","@sparkjsdev/spark":"/vendor/spark/spark.module.js"}}</script>
 </head><body>
-<header><div class="eyebrow">One Beyond · Photographic room</div><h1 id="mode">Photographic reconstruction</h1><div class="row"><select id="view" aria-label="Captured camera"></select><button id="reset" title="Reset camera position">Reset</button><button id="surfaces" hidden>Solid surfaces</button></div><details><summary>Capture information</summary><p id="status" role="status">Loading model…</p><p id="coverage">Sparse capture may leave incomplete details away from photographed views.</p><p>For optional manual cleanup, download the splat and open it in <a href="https://superspl.at/editor" target="_blank" rel="noopener noreferrer">SuperSplat</a>. Opening this link does not transfer your capture.</p></details></header>
+<header><div class="eyebrow">One Beyond · Photographic room</div><h1 id="mode">Photographic reconstruction</h1><div class="row"><select id="view" aria-label="Captured camera"></select><button id="reset" title="Reset camera position">Reset</button><button id="touch-toggle" aria-controls="touch-controls" aria-expanded="false">Walk controls</button><button id="fullscreen" hidden>Full screen</button><button id="surfaces" hidden>Solid surfaces</button></div><details><summary>Room information</summary><p id="status" role="status">Loading model…</p><p id="coverage">Sparse capture may leave incomplete details away from photographed views.</p><p>For optional manual cleanup, download the splat and open it in <a href="https://superspl.at/editor" target="_blank" rel="noopener noreferrer">SuperSplat</a>. Opening this link does not transfer your capture.</p></details></header>
+<div id="touch-controls" aria-label="Room movement controls"><div class="move-pad" role="group" aria-label="Walk"><button data-code="KeyW" aria-label="Move forward">↑</button><button data-code="KeyA" aria-label="Move left">←</button><button data-code="KeyS" aria-label="Move backward">↓</button><button data-code="KeyD" aria-label="Move right">→</button></div><div class="height-pad" role="group" aria-label="Camera height"><button data-code="KeyE" aria-label="Move up">↑ Up</button><button data-code="KeyQ" aria-label="Move down">↓ Down</button></div><div class="touch-caption">Hold to move · drag the room to look</div></div>
 <div class="walk-hint"><span id="controls">Drag to look · <kbd>W A S D</kbd> / arrows to walk <span class="optional">· Shift to sprint</span></span><button id="lock">Free look</button></div>
 <script type="module">
 import * as THREE from 'three';
@@ -23,6 +36,10 @@ try{
   const s=config.capture_statistics;
   captureStats.textContent=`Video preparation: ${s.selected_frames} selected from ${s.candidate_frames} candidate frames. Low-detail warnings: ${s.low_detail_warnings}. Counts do not certify geometric coverage.`;
   document.querySelector('header details').append(captureStats);
+ }
+ if(config.capture_support?.notice){
+  const supportNote=document.createElement('p');supportNote.textContent=config.capture_support.notice;
+  document.querySelector('header details').append(supportNote);
  }
  let needsRender=true,drawnFrames=0,idleSkippedFrames=0;
  const invalidate=()=>{needsRender=true;};
@@ -83,11 +100,12 @@ try{
  const rearWall=config.inferred_rear_wall?createInferredRearWall(config.inferred_rear_wall):null;
  if(rearWall){
   enclosure.add(rearWall.mesh);
-  const details=document.createElement('details');details.open=true;
-  const summary=document.createElement('summary');summary.textContent='Unobserved rear wall — optional inference';details.append(summary);
+  const details=document.createElement('details');details.open=false;
+  const regionLabel=config.inferred_rear_wall.region_label||(config.coverage_audit?.rear_visible_in_any===false?'Boundary behind capture positions':'Unverified boundary plane');
+  const summary=document.createElement('summary');summary.textContent=regionLabel+' — optional inferred completion';details.append(summary);
   const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=rearWall.mesh.visible;
   label.append(toggle,document.createTextNode(' Show plain inferred wall'));details.append(label);
-  const note=document.createElement('p');note.textContent='No rear photo exists in this capture. Position, extent and neutral colour are estimates, not a recovered wall. Boundary barriers are safety limits.';details.append(note);
+  const note=document.createElement('p');note.textContent=(config.coverage_audit?.rear_visible_in_any===false?'The boundary behind the capture positions was not observed in the audited image set. ':'Boundary coverage has not been verified across the image set. ')+'This does not classify the photographed forward end or side walls as unobserved. Position, extent and neutral colour are estimates, not a recovered wall. Boundary barriers are safety limits.';details.append(note);
   const distance=document.createElement('input');distance.type='range';distance.min=String(-config.inferred_rear_wall.max_offset);distance.max=String(config.inferred_rear_wall.max_offset);distance.step=String(config.inferred_rear_wall.max_offset/100);distance.value='0';distance.setAttribute('aria-label','Inferred rear wall offset in unmeasured scene units');details.append(distance);
   const output=document.createElement('p');output.textContent='Placement offset: 0 (unmeasured scene units)';details.append(output);
   toggle.onchange=()=>{rearWall.mesh.visible=toggle.checked;invalidate();};
@@ -95,7 +113,7 @@ try{
   document.querySelector('header').append(details);
  }
  if(navigation){
-  document.querySelector('#coverage').textContent=config.completion_policy==='unknown-rear'?'Estimated wall and furniture barriers are enabled. Rear-wall coverage is unknown; the optional neutral plane is an inference, not recovered geometry.':'Depth-derived wall and furniture barriers are enabled. Uncaptured enclosure surfaces are inferred; sparse photos still limit unseen detail.';
+  document.querySelector('#coverage').textContent=config.completion_policy==='unknown-rear'?'Estimated navigation barriers are enabled, not verified physical walls or furniture. The optional boundary plane is inferred; this does not establish coverage of other walls.':'Depth-derived wall and furniture barriers are enabled. Uncaptured enclosure surfaces are inferred; sparse photos still limit unseen detail.';
  }
  const viewDirection=new THREE.Vector3(),movement=new THREE.Vector3(),delta=new THREE.Vector3(),nextPosition=new THREE.Vector3(),upAxis=new THREE.Vector3(0,1,0);let depthWeight=1;
  let showPhoto=true;
@@ -148,22 +166,39 @@ try{
   camera.projectionMatrix.makePerspective((x-cx)*n/fx,(x+vw-cx)*n/fx,(cy-y)*n/fy,(cy-y-vh)*n/fy,n,camera.far);
   camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
  }
- function setCamera(name){
+ function setCamera(name,{preserveCapture=false}={}){
   invalidate();
   const c=config.cameras.find(c=>c.name===name);if(!c)throw new Error('Unknown camera');
   capturedCamera=c;camera.position.fromArray(c.position);const r=c.rotation;
   camera.quaternion.setFromRotationMatrix(new THREE.Matrix4().set(r[0][0],r[0][1],r[0][2],0,r[1][0],r[1][1],r[1][2],0,r[2][0],r[2][1],r[2][2],0,0,0,0,1));
-  angles.setFromQuaternion(camera.quaternion,'YXZ');camera.quaternion.setFromEuler(angles);velocity.set(0,0,0);keys.clear();activePointer=null;
+  angles.setFromQuaternion(camera.quaternion,'YXZ');if(config.navigation?.walking_plane&&!preserveCapture)angles.z=0;camera.quaternion.setFromEuler(angles);velocity.set(0,0,0);keys.clear();clearTouch();activePointer=null;
   projectCapturedView();select.value=name;
  }
- const move=desired=>{if(unsafeWalking){status.textContent='Walking is unavailable because depth collision geometry could not be verified. Use captured views or retry reconstruction.';return;}const p=navigation?navigation.constrain(camera.position.toArray(),desired.toArray()):(solid?solid.constrain(camera.position,desired):desired).toArray();if(p.some((v,i)=>v!==camera.position.getComponent(i))){camera.position.fromArray(p);invalidate();}};
- window.setReviewCamera=setCamera;window.moveReviewCamera=amount=>{const next=camera.position.clone().add(new THREE.Vector3(amount,0,0).applyQuaternion(camera.quaternion));move(next);};
+ const move=(desired,{allowElevation=false}={})=>{if(unsafeWalking){status.textContent='Walking is unavailable because depth collision geometry could not be verified. Use captured views or retry reconstruction.';return;}if(!allowElevation)desired.y=camera.position.y;const p=navigation?navigation.constrain(camera.position.toArray(),desired.toArray(),{allowElevation}):(solid?solid.constrain(camera.position,desired):desired).toArray();if(p.some((v,i)=>v!==camera.position.getComponent(i))){camera.position.fromArray(p);invalidate();}};
+ window.setReviewCamera=name=>setCamera(name,{preserveCapture:true});window.moveReviewCamera=amount=>{const next=camera.position.clone().add(new THREE.Vector3(amount,0,0).applyAxisAngle(upAxis,angles.y));move(next);};
  const look=(dx,dy)=>{angles.y-=dx*WALK_SETTINGS.look;angles.x=THREE.MathUtils.clamp(angles.x-dy*WALK_SETTINGS.look,-Math.PI/2.1,Math.PI/2.1);camera.quaternion.setFromEuler(angles);invalidate();};
  window.turnReviewCamera=angle=>look(-angle/.0022,0);
  window.pitchReviewCamera=angle=>look(0,-angle/.0022);
  window.tryReviewMove=values=>{const target=new THREE.Vector3(...values);const steps=Math.min(1000,Math.max(1,Math.ceil(camera.position.distanceTo(target)/.05)));for(let i=0;i<steps;i++)move(camera.position.clone().lerp(target,1/(steps-i)));return camera.position.toArray();};
  window.getReviewState=()=>({nativeRenderer:nativeFloat?.inspect(),position:camera.position.toArray(),rotation:angles.toArray().slice(0,3),velocity:velocity.toArray(),geometryCheck,drawnFrames,idleSkippedFrames,renderStats:{...renderer.info.render,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures},photoWeight:showPhoto?1:0,surfaceWeight:depthWeight,surfaceAnchor:layers[activeSurface]?.entry.anchor,opaqueSurfaces:layers.every(layer=>{let opaque=true;layer.scene.traverse(node=>{if(node.isMesh)opaque&&=![node.material].flat().some(m=>m.transparent||m.opacity!==1);});return opaque;}),enclosure:!!enclosureData,collision:navigation?.inspect(),enclosureOnly:enclosureOnly,mode:window.getReviewSurfaceMode(),pointerLocked:document.pointerLockElement===canvas});
  const keys=new Set();let activePointer=null,previousPointer={x:0,y:0};
+ const touchPointers=new Map(),touchCodes=new Set(),touchPanel=document.querySelector('#touch-controls'),touchToggle=document.querySelector('#touch-toggle');
+ function clearTouch(){touchPointers.clear();touchCodes.clear();for(const button of touchPanel.querySelectorAll('[data-code]'))button.dataset.held='false';}
+ function releaseTouch(e){const button=touchPointers.get(e.pointerId);if(!button)return;touchPointers.delete(e.pointerId);button.dataset.held=String([...touchPointers.values()].includes(button));touchCodes.clear();for(const held of touchPointers.values())touchCodes.add(held.dataset.code);}
+ for(const button of touchPanel.querySelectorAll('[data-code]')){
+  button.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();button.setPointerCapture(e.pointerId);touchPointers.set(e.pointerId,button);touchCodes.add(button.dataset.code);button.dataset.held='true';};
+  button.onpointerup=releaseTouch;button.onpointercancel=releaseTouch;button.onlostpointercapture=releaseTouch;
+  button.onkeydown=e=>{if(e.code==='Space'||e.code==='Enter'){e.preventDefault();touchCodes.add(button.dataset.code);button.dataset.held='true';}};
+  button.onkeyup=e=>{if(e.code==='Space'||e.code==='Enter'){touchCodes.delete(button.dataset.code);button.dataset.held='false';}};
+  button.onblur=()=>{if(![...touchPointers.values()].includes(button)){touchCodes.delete(button.dataset.code);button.dataset.held='false';}};
+ }
+ const coarse=matchMedia('(any-pointer:coarse)');
+ function showTouch(open){clearTouch();touchPanel.dataset.open=String(open);touchToggle.setAttribute('aria-expanded',String(open));}
+ showTouch(coarse.matches);touchToggle.onclick=()=>showTouch(touchPanel.dataset.open!=='true');
+ coarse.addEventListener('change',e=>showTouch(e.matches));
+ const fullscreen=document.querySelector('#fullscreen');fullscreen.hidden=!document.fullscreenEnabled;
+ fullscreen.onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{status.textContent='Full screen is unavailable in this browser. Walking controls remain available.';}};
+ document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'Exit full screen':'Full screen';clearTouch();velocity.set(0,0,0);});
  setCamera(config.initial_camera||config.cameras[0].name);select.onchange=()=>setCamera(select.value);document.querySelector('#reset').onclick=()=>setCamera(select.value);
  canvas.onpointerdown=e=>{if(e.button!==0||activePointer!==null)return;canvas.focus({preventScroll:true});activePointer=e.pointerId;previousPointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);};
  const release=()=>{activePointer=null;};canvas.onpointerup=release;canvas.onpointercancel=release;canvas.onlostpointercapture=release;
@@ -172,22 +207,22 @@ try{
   else if(activePointer===e.pointerId){look(e.clientX-previousPointer.x,e.clientY-previousPointer.y);previousPointer={x:e.clientX,y:e.clientY};}
  });
  const lockButton=document.querySelector('#lock');lockButton.onclick=async()=>{try{if(document.pointerLockElement===canvas)document.exitPointerLock();else await canvas.requestPointerLock();}catch{status.textContent='Free look is unavailable. Drag to look instead.';}};
- const clearInput=()=>{keys.clear();velocity.set(0,0,0);activePointer=null;};
+ const clearInput=()=>{keys.clear();clearTouch();velocity.set(0,0,0);activePointer=null;};
  document.addEventListener('pointerlockchange',()=>{clearInput();lockButton.textContent=document.pointerLockElement===canvas?'Esc to release':'Free look';if(document.pointerLockElement===canvas)canvas.focus({preventScroll:true});});
- onkeydown=e=>{if(e.code==='Escape'){clearInput();if(document.pointerLockElement===canvas)document.exitPointerLock();return;}if(e.target.closest?.('select,button,input,textarea,[contenteditable=true]')||e.altKey||e.ctrlKey||e.metaKey)return;if(/^(Key[WASDC]|Arrow|Shift|Control|Space)/.test(e.code)){e.preventDefault();keys.add(e.code);}};
+ onkeydown=e=>{if(e.code==='Escape'){clearInput();if(document.pointerLockElement===canvas)document.exitPointerLock();return;}if(e.target.closest?.('select,button,input,textarea,[contenteditable=true]')||e.altKey||e.ctrlKey||e.metaKey)return;if(/^(Key[WASDCEQ]|Arrow|Shift|Control|Space)/.test(e.code)){e.preventDefault();keys.add(e.code);}};
  onkeyup=e=>keys.delete(e.code);onblur=clearInput;document.addEventListener('visibilitychange',()=>{if(document.hidden)clearInput();});
- onresize=()=>{renderer.setSize(innerWidth,innerHeight);photoTarget?.setSize(innerWidth,innerHeight);projectCapturedView();invalidate();};
+ onresize=()=>{clearInput();renderer.setSize(innerWidth,innerHeight);photoTarget?.setSize(innerWidth,innerHeight);projectCapturedView();invalidate();};
  if(model)await model.initialized;status.textContent=config.notice;window.reviewReady=true;
  window.reviewSolid=solid?.inspect()||navigation?.inspect();window.reviewCleanup=config.cleanup;
  if(parent!==window)parent.postMessage({type:'one-beyond-splat-ready'},location.origin);
  let previous=performance.now(),enclosureOnly=false;renderer.setAnimationLoop(now=>{
   const dt=Math.min(.05,(now-previous)/1000);previous=now;
-  const down=(...codes)=>codes.some(code=>keys.has(code));
-  movement.set(Number(down('KeyD','ArrowRight'))-Number(down('KeyA','ArrowLeft')),0,Number(down('KeyS','ArrowDown'))-Number(down('KeyW','ArrowUp')));
-  if(movement.lengthSq()){movement.applyAxisAngle(upAxis,angles.y).normalize().multiplyScalar(photographicWalkSpeed(config.navigation?.eye_height)*(down('ShiftLeft','ShiftRight')?WALK_SETTINGS.sprint:1));}
+  const down=(...codes)=>codes.some(code=>keys.has(code)||touchCodes.has(code));
+  movement.set(Number(down('KeyD','ArrowRight'))-Number(down('KeyA','ArrowLeft')),Number(down('KeyE','Space'))-Number(down('KeyQ','KeyC')),Number(down('KeyS','ArrowDown'))-Number(down('KeyW','ArrowUp')));
+  if(movement.lengthSq()){const touchPace=keys.size===0&&touchCodes.size>0 ? .4 : 1;movement.applyAxisAngle(upAxis,angles.y).normalize().multiplyScalar(photographicWalkSpeed(config.navigation?.eye_height)*touchPace*(down('ShiftLeft','ShiftRight')?WALK_SETTINGS.sprint:1));}
   velocity.lerp(movement,1-Math.exp(-WALK_SETTINGS.damping*dt));
   delta.copy(velocity).multiplyScalar(dt);const substeps=Math.max(1,Math.ceil(delta.length()/.05));
-  if(delta.lengthSq()>1e-12)for(let i=0;i<substeps;i++)move(nextPosition.copy(camera.position).addScaledVector(delta,1/substeps));
+  if(delta.lengthSq()>1e-12)for(let i=0;i<substeps;i++)move(nextPosition.copy(camera.position).addScaledVector(delta,1/substeps),{allowElevation:down('KeyE','Space','KeyQ','KeyC')});
   // The photo mesh/enclosure are static. Reuse the last exact framebuffer
   // while idle; raw Spark fallback retains its asynchronous rendering loop.
   if((hasPhotoMesh||nativeFloat)&&!needsRender){idleSkippedFrames++;return;}

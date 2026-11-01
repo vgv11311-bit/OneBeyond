@@ -39,7 +39,7 @@ def parse_video_probe(data):
 
 def video_metadata(path):
     """Bounded metadata probing; full decoding happens in the isolated worker."""
-    from local_reconstruct import tool
+    from colmap_prepare import tool
     executable = Path(tool('ffmpeg')).with_name('ffprobe.exe' if os.name == 'nt' else 'ffprobe')
     probe = str(executable) if executable.is_file() else shutil.which('ffprobe')
     try:

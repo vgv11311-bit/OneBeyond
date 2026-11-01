@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowRight } from 'lucide-react';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { navigateSite } from '../siteRoutes';
 
 interface LivingBlueprintProps {
@@ -21,6 +22,7 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
   const [reduceMotion, setReduceMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 760px)').matches);
   const [sceneFailed, setSceneFailed] = useState(false);
+  const [sceneReady, setSceneReady] = useState(false);
 
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -36,7 +38,8 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
     return () => viewport.removeEventListener('change', update);
   }, []);
 
-  const staticStory = reduceMotion || compact;
+  // Reduced motion keeps a still alternative; narrow screens use the same 3D story.
+  const staticStory = reduceMotion;
 
   useEffect(() => {
     let frame = 0;
@@ -50,7 +53,9 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
       sceneUpdateRef.current?.(progress);
       if (progressBarRef.current) progressBarRef.current.style.transform = `scaleX(${progress})`;
       if (staticStory) return;
-      const activeIndex = progress < .15 ? 0 : progress < .34 ? 1 : progress < .56 ? 2 : progress < .78 ? 3 : 4;
+      const activeIndex = compact
+        ? progress < .08 ? 0 : progress < .27 ? 1 : progress < .49 ? 2 : progress < .74 ? 3 : 4
+        : progress < .15 ? 0 : progress < .34 ? 1 : progress < .56 ? 2 : progress < .78 ? 3 : 4;
       copyRefs.current.forEach((node, index) => {
         if (!node) return;
         const active = index === activeIndex;
@@ -69,12 +74,13 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
       window.removeEventListener('resize', schedule);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [staticStory]);
+  }, [staticStory, compact]);
 
   useEffect(() => {
     if (staticStory) return;
     const host = canvasHostRef.current;
     if (!host) return;
+    setSceneReady(false);
     let disposed = false;
     let cleanup = () => {};
 
@@ -94,12 +100,22 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
       host.appendChild(renderer.domElement);
 
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(42, 1, .1, 80);
+      const camera = new THREE.PerspectiveCamera(compact ? 50 : 42, 1, .1, 80);
       const target = new THREE.Vector3();
-      const ambient = new THREE.AmbientLight(0xffffff, 2.1);
-      const key = new THREE.DirectionalLight(0xffe6ca, 3.0);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      const ambient = new THREE.HemisphereLight(0xfff5e8, 0x6c5648, 1.7);
+      const key = new THREE.DirectionalLight(0xffe6ca, 3.2);
       key.position.set(-4, 8, 5);
-      const fill = new THREE.DirectionalLight(0xffffff, 1.3);
+      key.castShadow = true;
+      key.shadow.mapSize.set(1024, 1024);
+      key.shadow.camera.left = -6;
+      key.shadow.camera.right = 6;
+      key.shadow.camera.top = 6;
+      key.shadow.camera.bottom = -6;
+      key.shadow.normalBias = .025;
+      key.shadow.radius = 3;
+      const fill = new THREE.DirectionalLight(0xffffff, .8);
       fill.position.set(5, 5, -4);
       scene.add(ambient, key, fill);
 
@@ -109,9 +125,15 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
       const blueprintFloor = new THREE.Color('#181614');
       const floorMaterial = new THREE.MeshStandardMaterial({ color: blueprintFloor, roughness: .92, metalness: 0 });
       const wallMaterial = new THREE.MeshStandardMaterial({ color: blueprintWall, roughness: .88, side: THREE.DoubleSide });
-      const woodMaterial = new THREE.MeshStandardMaterial({ color: '#997359', roughness: .75 });
-      const fabricMaterial = new THREE.MeshStandardMaterial({ color: '#5c5047', roughness: .95 });
+      const woodMaterial = new THREE.MeshStandardMaterial({ color: '#9e7456', roughness: .63 });
+      const fabricMaterial = new THREE.MeshStandardMaterial({ color: '#6b5c50', roughness: .98 });
+      const cushionMaterial = new THREE.MeshStandardMaterial({ color: '#a58e7a', roughness: 1 });
+      const accentMaterial = new THREE.MeshStandardMaterial({ color: '#a95332', roughness: .96 });
       const ivoryMaterial = new THREE.MeshStandardMaterial({ color: '#e6d5bd', roughness: .88 });
+      const rugMaterial = new THREE.MeshStandardMaterial({ color: '#c9b8a1', roughness: 1 });
+      const leafMaterial = new THREE.MeshStandardMaterial({ color: '#59705e', roughness: .9, side: THREE.DoubleSide });
+      const lampShadeMaterial = new THREE.MeshStandardMaterial({ color: '#e7c39b', emissive: '#ffaf63', emissiveIntensity: .5, roughness: .84, side: THREE.DoubleSide });
+      const lampBulbMaterial = new THREE.MeshBasicMaterial({ color: '#ffe0ab' });
       const metalMaterial = new THREE.MeshStandardMaterial({ color: '#44382f', metalness: .58, roughness: .42 });
       const windowMaterial = new THREE.MeshStandardMaterial({ color: '#b7c7bf', transparent: true, opacity: .32, metalness: .05, roughness: .25 });
       const lineMaterial = new THREE.LineBasicMaterial({ color: '#e3542a', transparent: true, opacity: 1 });
@@ -119,6 +141,7 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
 
       const floor = new THREE.Mesh(new THREE.BoxGeometry(5.4, .06, 6), floorMaterial);
       floor.position.y = -.035;
+      floor.receiveShadow = true;
       scene.add(floor);
       const wallSpecs: Array<[number, number, number, number, number]> = [
         [0, -3, 5.4, .08, 3],
@@ -128,6 +151,7 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
       const walls = wallSpecs.map(([x, z, width, depth, height]) => {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), wallMaterial);
         mesh.position.set(x, 0, z);
+        mesh.receiveShadow = true;
         scene.add(mesh);
         return mesh;
       });
@@ -148,26 +172,101 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
 
       const furniture = new THREE.Group();
       scene.add(furniture);
-      const box = (x: number, y: number, z: number, width: number, height: number, depth: number, material: InstanceType<typeof THREE.MeshStandardMaterial>) => {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+      const rounded = (x: number, y: number, z: number, width: number, height: number, depth: number, radius: number, material: InstanceType<typeof THREE.MeshStandardMaterial>) => {
+        const mesh = new THREE.Mesh(new RoundedBoxGeometry(width, height, depth, 5, radius), material);
         mesh.position.set(x, y, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         furniture.add(mesh);
         return mesh;
       };
-      box(-.72, .28, -.86, 2.35, .42, .92, fabricMaterial);
-      box(-.72, .72, -1.23, 2.35, .72, .20, fabricMaterial);
-      box(-1.85, .52, -.86, .18, .7, .92, fabricMaterial);
-      box(.40, .52, -.86, .18, .7, .92, fabricMaterial);
-      box(-1.31, .52, -.80, 1.05, .13, .68, ivoryMaterial);
-      box(-.13, .52, -.80, 1.05, .13, .68, ivoryMaterial);
-      box(1.2, .33, .45, 1.15, .12, .65, woodMaterial);
-      box(.77, .17, .18, .06, .28, .06, metalMaterial);
-      box(1.63, .17, .18, .06, .28, .06, metalMaterial);
-      box(.77, .17, .72, .06, .28, .06, metalMaterial);
-      box(1.63, .17, .72, .06, .28, .06, metalMaterial);
-      box(1.85, 1.04, -2.73, .82, 1.62, .24, woodMaterial);
-      box(1.85, .78, -2.55, .7, .06, .48, ivoryMaterial);
-      box(1.85, 1.34, -2.55, .7, .06, .48, ivoryMaterial);
+      const cylinder = (x: number, y: number, z: number, top: number, bottom: number, height: number, material: InstanceType<typeof THREE.MeshStandardMaterial>) => {
+        const mesh = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, height, 16), material);
+        mesh.position.set(x, y, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        furniture.add(mesh);
+        return mesh;
+      };
+      const upholstery = (x: number, y: number, z: number, width: number, height: number, depth: number, material: InstanceType<typeof THREE.MeshStandardMaterial>) => {
+        const geometry = new THREE.SphereGeometry(1, 32, 20);
+        const points = geometry.attributes.position;
+        for (let index = 0; index < points.count; index++) {
+          const soften = (value: number) => Math.sign(value) * Math.pow(Math.abs(value), .58);
+          points.setXYZ(index, soften(points.getX(index)) * width / 2, soften(points.getY(index)) * height / 2, soften(points.getZ(index)) * depth / 2);
+        }
+        geometry.computeVertexNormals();
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(x, y, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        furniture.add(mesh);
+        return mesh;
+      };
+      // Upholstery has separate rounded cushions and a continuous curved frame.
+      rounded(-.72, .29, -.86, 2.42, .42, 1.02, .16, fabricMaterial);
+      const sofaBack = rounded(-.72, .73, -1.30, 2.42, .83, .23, .11, fabricMaterial);
+      sofaBack.rotation.x = -.07;
+      rounded(-1.85, .52, -.86, .18, .62, 1.02, .085, fabricMaterial);
+      rounded(.41, .52, -.86, .18, .62, 1.02, .085, fabricMaterial);
+      for (const x of [-1.31, -.13]) {
+        const seat = upholstery(x, .55, -.75, 1.06, .22, .78, cushionMaterial);
+        seat.rotation.x = -.025;
+        const back = upholstery(x, .85, -1.16, 1.02, .48, .22, cushionMaterial);
+        back.rotation.x = -.11;
+      }
+      const throwPillow = upholstery(-1.61, .8, -.91, .36, .39, .16, accentMaterial);
+      throwPillow.rotation.z = -.18;
+      throwPillow.rotation.y = .22;
+      for (const x of [-1.65, .17]) for (const z of [-1.17, -.57]) cylinder(x, .055, z, .035, .025, .11, metalMaterial);
+
+      // A woven rug and a low, oval coffee table give the room softer edges.
+      rounded(1.05, .014, .55, 3.1, .025, 2.25, .012, rugMaterial).castShadow = false;
+      const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(.61, .61, .09, 48), woodMaterial);
+      tableTop.scale.z = .62;
+      tableTop.position.set(1.1, .43, .5);
+      tableTop.castShadow = true;
+      tableTop.receiveShadow = true;
+      furniture.add(tableTop);
+      for (const x of [.74, 1.46]) for (const z of [.29, .71]) cylinder(x, .2, z, .022, .03, .4, metalMaterial);
+      // The table lamp rests on the top and gives the seating area a warm pool of light.
+      cylinder(1.1, .505, .5, .075, .085, .055, ivoryMaterial);
+      cylinder(1.1, .605, .5, .013, .013, .16, metalMaterial);
+      const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(.085, .145, .17, 24, 1, true), lampShadeMaterial);
+      lampShade.position.set(1.1, .75, .5);
+      lampShade.castShadow = true;
+      furniture.add(lampShade);
+      const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(.045, 12, 8), lampBulbMaterial);
+      lampBulb.position.set(1.1, .69, .5);
+      furniture.add(lampBulb);
+      const lampGlow = new THREE.PointLight(0xffb86d, 1.5, 2.1, 2);
+      lampGlow.position.set(1.1, .69, .5);
+      furniture.add(lampGlow);
+
+      // The top joins the cabinet. Every display object rests on a shelf.
+      rounded(1.85, .92, -2.72, .86, 1.72, .32, .045, woodMaterial);
+      for (const y of [.48, 1.01, 1.54]) rounded(1.85, y, -2.48, .78, .055, .45, .025, ivoryMaterial);
+      rounded(1.85, 1.79, -2.52, .82, .06, .4, .025, ivoryMaterial);
+      for (const [x, height, material] of [
+        [1.63, .26, accentMaterial], [1.76, .32, woodMaterial], [1.89, .22, cushionMaterial],
+      ] as const) rounded(x, .51 + height / 2, -2.39, .1, height, .18, .018, material);
+      cylinder(1.68, 1.15, -2.37, .075, .11, .23, ivoryMaterial);
+      rounded(2.02, 1.17, -2.39, .19, .26, .06, .015, metalMaterial);
+      const displayOrb = new THREE.Mesh(new THREE.SphereGeometry(.105, 20, 12), accentMaterial);
+      displayOrb.position.set(1.69, 1.67, -2.39);
+      displayOrb.castShadow = true;
+      furniture.add(displayOrb);
+      rounded(2.01, 1.625, -2.39, .17, .12, .17, .035, woodMaterial);
+      cylinder(1.85, 1.92, -2.52, .11, .08, .2, accentMaterial);
+      cylinder(1.85, 2.105, -2.52, .012, .012, .18, leafMaterial);
+      for (const direction of [-1, 1]) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(.13, 12, 8), leafMaterial);
+        leaf.scale.set(.95, .18, .38);
+        leaf.position.set(1.85 + direction * .11, 2.11, -2.52);
+        leaf.rotation.z = direction * .35;
+        leaf.castShadow = true;
+        furniture.add(leaf);
+      }
       const windowPane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.42), windowMaterial);
       windowPane.position.set(-.62, 1.9, -2.9);
       furniture.add(windowPane);
@@ -190,10 +289,10 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
         sceneUpdateRef.current?.(currentProgressRef.current);
       };
       const updateScene = (progress: number) => {
-        const rise = smooth(span(progress, .15, .52));
-        const finish = smooth(span(progress, .48, .80));
+        const rise = smooth(span(progress, compact ? .04 : .15, compact ? .42 : .52));
+        const finish = smooth(span(progress, compact ? .32 : .48, compact ? .76 : .80));
         const walkthrough = smooth(span(progress, .72, 1));
-        outlineGeometry.setDrawRange(0, Math.max(2, Math.ceil(span(progress, .15, .30) * outlinePoints.length)));
+        outlineGeometry.setDrawRange(0, Math.max(2, Math.ceil(span(progress, compact ? .01 : .15, compact ? .18 : .30) * outlinePoints.length)));
         lineMaterial.opacity = 1 - finish * .68;
         detailLineMaterial.opacity = .12 + (1 - finish) * .55;
         floorMaterial.color.copy(blueprintFloor).lerp(warmFloor, finish);
@@ -202,11 +301,15 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
           wall.scale.y = Math.max(.001, rise);
           wall.position.y = 1.5 * rise;
         });
-        furniture.scale.y = Math.max(.001, smooth(span(progress, .40, .70)));
-        furniture.visible = progress > .40;
-        planFurniture.visible = progress < .68;
-        planTable.visible = progress < .68;
-        camera.position.set(5.9 * (1 - walkthrough), 8.6 - 6.96 * walkthrough, 8.0 - 5.38 * walkthrough);
+        furniture.scale.y = Math.max(.001, smooth(span(progress, compact ? .27 : .40, compact ? .65 : .70)));
+        furniture.visible = progress > (compact ? .27 : .40);
+        planFurniture.visible = progress < (compact ? .63 : .68);
+        planTable.visible = progress < (compact ? .63 : .68);
+        camera.position.set(
+          (compact ? 6.4 : 5.9) * (1 - walkthrough),
+          (compact ? 7.5 : 8.6) - (compact ? 5.86 : 6.96) * walkthrough,
+          (compact ? 9.4 : 8.0) - (compact ? 6.78 : 5.38) * walkthrough,
+        );
         target.set(0, .12 + 1.27 * walkthrough, -.8 * walkthrough);
         camera.lookAt(target);
         renderer.render(scene, camera);
@@ -215,6 +318,7 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
       const observer = new ResizeObserver(resize);
       observer.observe(host);
       resize();
+      setSceneReady(true);
       cleanup = () => {
         observer.disconnect();
         sceneUpdateRef.current = null;
@@ -223,18 +327,24 @@ export const LivingBlueprint: React.FC<LivingBlueprintProps> = ({ onOpenUpload }
             object.geometry.dispose();
           }
         });
-        [floorMaterial, wallMaterial, woodMaterial, fabricMaterial, ivoryMaterial, metalMaterial, windowMaterial, lineMaterial, detailLineMaterial].forEach((material) => material.dispose());
+        [floorMaterial, wallMaterial, woodMaterial, fabricMaterial, cushionMaterial, accentMaterial, ivoryMaterial, rugMaterial, leafMaterial, lampShadeMaterial, lampBulbMaterial, metalMaterial, windowMaterial, lineMaterial, detailLineMaterial].forEach((material) => material.dispose());
         renderer.dispose();
         renderer.domElement.remove();
       };
     }).catch(() => { if (!disposed) setSceneFailed(true); });
     return () => { disposed = true; cleanup(); };
-  }, [staticStory]);
+  }, [staticStory, compact]);
 
   return <section ref={sectionRef} id="home" className={`blueprint-story${staticStory ? ' blueprint-reduced' : ''}`} aria-label="From image to explorable space">
     <div className="blueprint-stage">
       {!staticStory && !sceneFailed && <div ref={canvasHostRef} className="blueprint-canvas" aria-hidden="true" />}
-      {(staticStory || sceneFailed) && <div className="blueprint-fallback" aria-hidden="true"><svg viewBox="0 0 540 480" focusable="false"><path d="M70 65H470V415H70Z M140 130H400V350H140Z M70 65 140 130M470 65 400 130M70 415 140 350M470 415 400 350" /><path d="M140 350H400M210 350V220H330V350M210 220H330" /></svg></div>}
+      {(staticStory || sceneFailed) && !compact && <div className="blueprint-fallback" aria-hidden="true"><svg viewBox="0 0 540 480" focusable="false"><path d="M70 65H470V415H70Z M140 130H400V350H140Z M70 65 140 130M470 65 400 130M70 415 140 350M470 415 400 350" /><path d="M140 350H400M210 350V220H330V350M210 220H330" /></svg></div>}
+      {compact && (staticStory || sceneFailed || !sceneReady) && <div className="blueprint-fallback blueprint-mobile-fallback" aria-hidden="true"><svg viewBox="0 0 540 480" focusable="false">
+        <path className="blueprint-plan-floor" d="M55 225 270 80 485 205 270 355Z" />
+        <path d="M55 225 270 80 485 205M55 225v-85L270 8l215 125v72M270 80v-72M270 355 485 205" />
+        <path className="blueprint-plan-furniture" d="m134 215 112-72 85 48-112 75Zm22-10 89-57m-55 104 113-73m40 34 58-39 43 25-58 39Zm-24 29 44 25-44 28-44-25Z" />
+        <path className="blueprint-plan-window" d="m325 50 76 44v48l-76-44Z" />
+      </svg></div>}
       <div className="blueprint-grain" aria-hidden="true" />
       <div className="blueprint-top" aria-hidden="true"><span>ONE BEYOND / LIVING BLUEPRINT</span><span>ILLUSTRATIVE SPATIAL STORY</span></div>
       <div className="blueprint-copies">

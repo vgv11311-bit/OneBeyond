@@ -9,6 +9,6 @@ describe('viewer failure recovery', () => {
     const markup = renderToStaticMarkup(boundary.render());
     expect(markup).toContain('role="alert"');
     expect(markup).toContain('Retry loading model');
-    expect(markup).toContain('reconstruction is still saved');
+    expect(markup).toContain('The 3D viewer could not open this room');
   });
 });
